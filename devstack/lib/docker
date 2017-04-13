@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# Dependencies:
+#
+# - functions
+# - ``STACK_USER`` must be defined
+# - ``ETCD_PORT`` must be defined if on swarm mode
+
+# stack.sh
+# ---------
+# - install_docker
+
+# Save trace setting
+_XTRACE_DOCKER=$(set +o | grep xtrace)
+set +o xtrace
+
+
+# Defaults
+# --------
+
+DOCKER_ENGINE_SOCKET_FILE=${DOCKER_ENGINE_SOCKET_FILE:-/var/run/docker.sock}
+DOCKER_ENGINE_PORT=${DOCKER_ENGINE_PORT:-2375}
+SWARM_MODE=$(trueorfalse False SWARM_MODE)
+
+
+# Functions
+# ---------
+
+function check_docker {
+    if is_ubuntu; then
+       dpkg -s docker-engine > /dev/null 2>&1 || dpkg -s docker-ce > /dev/null 2>&1
+    else
+       rpm -q docker-engine > /dev/null 2>&1 || rpm -q docker > /dev/null 2>&1 || rpm -q docker-ce > /dev/null 2>&1
+    fi
+}
+
+function install_docker {
+    if [[ -z "$os_PACKAGE" ]]; then
+        GetOSVersion
+    fi
+
+    local lsb_dist=${os_VENDOR,,}
+    local dist_version=${os_CODENAME}
+    local arch=$(dpkg --print-architecture)
+    if is_ubuntu; then
+        apt_get install linux-image-extra-$(uname -r) linux-image-extra-virtual
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+        sudo add-apt-repository -y \
+            "deb [arch=${arch}] https://download.docker.com/linux/${lsb_dist} \
+            ${dist_version} \
+            stable"
+        REPOS_UPDATED=False apt_get_update
+        apt_get install docker-ce
+    elif is_fedora; then
+        if [[ "$lsb_dist" = "centos" ]]; then
+            sudo yum-config-manager \
+                --add-repo \
+                https://download.docker.com/linux/centos/docker-ce.repo
+        elif [[ "$lsb_dist" = "fedora" ]]; then
+            sudo dnf config-manager \
+                --add-repo \
+                https://download.docker.com/linux/fedora/docker-ce.repo
+        fi
+        yum_install docker-ce
+    fi
+}
+
+function configure_docker {
+    # After an ./unstack it will be stopped. So it is ok if it returns exit-code == 1
+    sudo systemctl stop docker.service || true
+
+    local cluster_store_opts=""
+    if [[ "$SWARM_MODE" = "True" ]]; then
+        cluster_store_opts+="\"cluster-store\": \"etcd://localhost:$ETCD_PORT\","
+    fi
+    local docker_config_file=/etc/docker/daemon.json
+    sudo mkdir -p $(dirname ${docker_config_file})
+    cat <<EOF | sudo tee $docker_config_file >/dev/null
+{
+    $cluster_store_opts
+    "group": "$STACK_USER",
+    "hosts": [
+        "unix://$DOCKER_ENGINE_SOCKET_FILE",
+        "tcp://0.0.0.0:$DOCKER_ENGINE_PORT"
+    ]
+}
+EOF
+    # NOTE(hongbin): We override ExecStart to workaround issue 22339.
+    # https://github.com/docker/docker/issues/22339
+    local docker_drop_in_file=/etc/systemd/system/docker.service.d/docker.conf
+    sudo mkdir -p $(dirname ${docker_drop_in_file})
+    cat <<EOF | sudo tee $docker_drop_in_file >/dev/null
+[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd --config-file=$docker_config_file
+EOF
+    sudo systemctl daemon-reload
+    sudo systemctl --no-block restart docker.service
+}
+
+function stop_docker {
+    sudo systemctl stop docker.service || true
+}
+
+# Restore xtrace
+$_XTRACE_DOCKER

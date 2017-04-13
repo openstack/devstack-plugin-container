@@ -1,0 +1,6 @@
+# Devstack settings
+
+CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
+
+# Enable container services
+enable_service container
