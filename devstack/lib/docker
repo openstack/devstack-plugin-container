@@ -48,6 +48,7 @@ function install_docker {
     local arch=$(dpkg --print-architecture)
     if is_ubuntu; then
         apt_get install linux-image-extra-$(uname -r) linux-image-extra-virtual
+        apt_get install apt-transport-https ca-certificates software-properties-common
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
         sudo add-apt-repository -y \
             "deb [arch=${arch}] https://download.docker.com/linux/${lsb_dist} \
