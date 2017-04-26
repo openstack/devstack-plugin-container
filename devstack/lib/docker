@@ -10,6 +10,10 @@
 # ---------
 # - install_docker
 
+# The following variables are assumed to be defined by certain functions:
+#
+# - ``http_proxy`` ``https_proxy`` ``no_proxy``
+
 # Save trace setting
 _XTRACE_DOCKER=$(set +o | grep xtrace)
 set +o xtrace
@@ -93,6 +97,9 @@ EOF
 [Service]
 ExecStart=
 ExecStart=/usr/bin/dockerd --config-file=$docker_config_file
+
+[Service]
+Environment="HTTP_PROXY=$http_proxy" "HTTPS_PROXY=$https_proxy" "NO_PROXY=$no_proxy"
 EOF
     sudo systemctl daemon-reload
     sudo systemctl --no-block restart docker.service
