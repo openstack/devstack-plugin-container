@@ -4,7 +4,6 @@
 #
 # - functions
 # - ``STACK_USER`` must be defined
-# - ``ETCD_PORT`` must be defined if on swarm mode
 
 # stack.sh
 # ---------
@@ -24,7 +23,7 @@ set +o xtrace
 
 DOCKER_ENGINE_SOCKET_FILE=${DOCKER_ENGINE_SOCKET_FILE:-/var/run/docker.sock}
 DOCKER_ENGINE_PORT=${DOCKER_ENGINE_PORT:-2375}
-SWARM_MODE=$(trueorfalse False SWARM_MODE)
+DOCKER_CLUSTER_STORE=${DOCKER_CLUSTER_STORE:-}
 
 
 # Functions
@@ -75,8 +74,8 @@ function configure_docker {
     sudo systemctl stop docker.service || true
 
     local cluster_store_opts=""
-    if [[ "$SWARM_MODE" = "True" ]]; then
-        cluster_store_opts+="\"cluster-store\": \"etcd://localhost:$ETCD_PORT\","
+    if [[ -n "$DOCKER_CLUSTER_STORE" ]]; then
+        cluster_store_opts+="\"cluster-store\": \"$DOCKER_CLUSTER_STORE\","
     fi
     local docker_config_file=/etc/docker/daemon.json
     sudo mkdir -p $(dirname ${docker_config_file})
