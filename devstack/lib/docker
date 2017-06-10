@@ -49,7 +49,7 @@ function install_docker {
         if uname -r | grep -q -- '-generic' && dpkg -l 'linux-image-*-generic' | grep -qE '^ii|^hi' 2>/dev/null; then
             apt_get install linux-image-extra-$(uname -r) linux-image-extra-virtual
         else
-            warn $LINENO "Current kernel is not supported by the linux-image-extra-virtual package. Docker may not work."
+            (>&2 echo "WARNING: Current kernel is not supported by the linux-image-extra-virtual package. Docker may not work.")
         fi
         apt_get install apt-transport-https ca-certificates software-properties-common
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
