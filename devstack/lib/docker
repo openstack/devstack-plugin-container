@@ -101,8 +101,6 @@ EOF
 [Service]
 ExecStart=
 ExecStart=/usr/bin/dockerd --config-file=$docker_config_file
-
-[Service]
 Environment="HTTP_PROXY=$http_proxy" "HTTPS_PROXY=$https_proxy" "NO_PROXY=$no_proxy"
 EOF
     sudo systemctl daemon-reload
