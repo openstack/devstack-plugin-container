@@ -38,6 +38,10 @@ echo_summary "Devstack-plugin-container's post_test_hook.sh was called..."
 # Verify that Docker is installed correctly by running the hello-world image
 sudo -H -u stack docker run hello-world
 
+# Copy over docker systemd unit journals.
+mkdir -p $WORKSPACE/logs
+sudo journalctl -o short-precise --unit docker | sudo tee $WORKSPACE/logs/docker.txt > /dev/null
+
 EXIT_CODE=$?
 
 $XTRACE
