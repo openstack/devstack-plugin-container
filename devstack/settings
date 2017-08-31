@@ -1,6 +1,7 @@
 # Devstack settings
 
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
+ENABLE_CLEAR_CONTAINER=${ENABLE_CLEAR_CONTAINER:-true}
 
 # Enable container services
 enable_service container

@@ -26,7 +26,7 @@ DOCKER_ENGINE_PORT=${DOCKER_ENGINE_PORT:-2375}
 DOCKER_CLUSTER_STORE=${DOCKER_CLUSTER_STORE:-}
 DOCKER_GROUP=${DOCKER_GROUP:-$STACK_USER}
 DOCKER_CGROUP_DRIVER=${DOCKER_CGROUP_DRIVER:-}
-
+ENABLE_CLEAR_CONTAINER=$(trueorfalse False ENABLE_CLEAR_CONTAINER)
 
 # Functions
 # ---------
@@ -73,6 +73,19 @@ function install_docker {
         fi
         yum_install docker-ce
     fi
+    if [[ "$ENABLE_CLEAR_CONTAINER" == "True" ]]; then
+        # Clear Container can't run inside VM, so check whether virtualization
+        # is enabled or not
+        if sudo grep -E 'svm|vmx' /proc/cpuinfo &> /dev/null; then
+            if is_ubuntu; then
+                install_clear_container_ubuntu
+            elif is_fedora; then
+                install_clear_container_fedora
+            fi
+        else
+            (>&2 echo "WARNING: Clear Container needs the CPU extensions svm or vmx which is not enabled. Skipping Clear Container installation.")
+        fi
+    fi
 }
 
 function configure_docker {
@@ -82,6 +95,16 @@ function configure_docker {
     local cluster_store_opts=""
     if [[ -n "$DOCKER_CLUSTER_STORE" ]]; then
         cluster_store_opts+="\"cluster-store\": \"$DOCKER_CLUSTER_STORE\","
+    fi
+    local runtime_opts=""
+    if [[ "$ENABLE_CLEAR_CONTAINER" == "True" ]]; then
+        if sudo grep -E 'svm|vmx' /proc/cpuinfo &> /dev/null; then
+            runtime_opts+="\"runtimes\": {
+                \"cor\": {
+                    \"path\": \"/usr/bin/cc-oci-runtime\"
+                }
+            },"
+        fi
     fi
     local docker_config_file=/etc/docker/daemon.json
     local debug
@@ -94,6 +117,7 @@ function configure_docker {
     cat <<EOF | sudo tee $docker_config_file >/dev/null
 {
     $cluster_store_opts
+    $runtime_opts
     "debug": ${debug},
     "group": "$DOCKER_GROUP",
 EOF
@@ -111,6 +135,7 @@ EOF
     ]
 }
 EOF
+
     # NOTE(hongbin): We override ExecStart to workaround issue 22339.
     # https://github.com/docker/docker/issues/22339
     local docker_drop_in_file=/etc/systemd/system/docker.service.d/docker.conf
@@ -127,6 +152,24 @@ EOF
 
 function stop_docker {
     sudo systemctl stop docker.service || true
+}
+
+function install_clear_container_ubuntu {
+    sudo sh -c "echo 'deb http://download.opensuse.org/repositories/home:/clearlinux:/preview:/clear-containers-2.1/xUbuntu_$(lsb_release -rs)/ /' >> /etc/apt/sources.list.d/cc-oci-runtime.list"
+    curl -fsSL http://download.opensuse.org/repositories/home:/clearlinux:/preview:/clear-containers-2.1/xUbuntu_$(lsb_release -rs)/Release.key | sudo apt-key add -
+    REPOS_UPDATED=False apt_get_update
+    apt_get install cc-oci-runtime
+}
+
+function install_clear_container_fedora {
+    source /etc/os-release
+    local lsb_dist=${os_VENDOR,,}
+    if [[ "$lsb_dist" = "fedora" ]]; then
+        sudo -E dnf config-manager \
+            --add-repo \
+            http://download.opensuse.org/repositories/home:clearlinux:preview:clear-containers-2.1/Fedora\_$VERSION_ID/home:clearlinux:preview:clear-containers-2.1.repo
+    fi
+    yum_install cc-oci-runtime linux-container
 }
 
 # Restore xtrace

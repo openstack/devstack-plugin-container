@@ -1,13 +1,13 @@
-=================
- Container Plugin
-=================
+================
+Container Plugin
+================
 
 This plugin enables installation of container engine on Devstack. The default
 container engine is Docker (currently this plugin supports only Docker!).
 
-======================
- Enabling in Devstack
-======================
+====================
+Enabling in Devstack
+====================
 
 1. Download DevStack
 --------------------
