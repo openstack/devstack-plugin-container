@@ -83,10 +83,17 @@ function configure_docker {
         cluster_store_opts+="\"cluster-store\": \"$DOCKER_CLUSTER_STORE\","
     fi
     local docker_config_file=/etc/docker/daemon.json
+    local debug
+    if [[ "$ENABLE_DEBUG_LOG_LEVEL" == "True" ]]; then
+        debug=true
+    else
+        debug=false
+    fi
     sudo mkdir -p $(dirname ${docker_config_file})
     cat <<EOF | sudo tee $docker_config_file >/dev/null
 {
     $cluster_store_opts
+    "debug": ${debug},
     "group": "$DOCKER_GROUP",
     "hosts": [
         "unix://$DOCKER_ENGINE_SOCKET_FILE",
