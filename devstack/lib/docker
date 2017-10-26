@@ -25,6 +25,7 @@ DOCKER_ENGINE_SOCKET_FILE=${DOCKER_ENGINE_SOCKET_FILE:-/var/run/docker.sock}
 DOCKER_ENGINE_PORT=${DOCKER_ENGINE_PORT:-2375}
 DOCKER_CLUSTER_STORE=${DOCKER_CLUSTER_STORE:-}
 DOCKER_GROUP=${DOCKER_GROUP:-$STACK_USER}
+DOCKER_CGROUP_DRIVER=${DOCKER_CGROUP_DRIVER:-}
 
 
 # Functions
@@ -95,6 +96,15 @@ function configure_docker {
     $cluster_store_opts
     "debug": ${debug},
     "group": "$DOCKER_GROUP",
+EOF
+    if [[ -n "$DOCKER_CGROUP_DRIVER" ]]; then
+
+    cat <<EOF | sudo tee -a $docker_config_file >/dev/null
+    "exec-opts": ["native.cgroupdriver=${DOCKER_CGROUP_DRIVER}"],
+EOF
+    fi
+
+    cat <<EOF | sudo tee -a $docker_config_file >/dev/null
     "hosts": [
         "unix://$DOCKER_ENGINE_SOCKET_FILE",
         "tcp://0.0.0.0:$DOCKER_ENGINE_PORT"
