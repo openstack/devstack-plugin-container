@@ -17,4 +17,4 @@ container engine is Docker.
      [[local|localrc]]
      enable_plugin devstack-plugin-container https://github.com/openstack/devstack-plugin-container
 
-3. run ``stack.sh``
+3. run ``./stack.sh``
