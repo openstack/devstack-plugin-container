@@ -27,6 +27,7 @@ DOCKER_CLUSTER_STORE=${DOCKER_CLUSTER_STORE:-}
 DOCKER_GROUP=${DOCKER_GROUP:-$STACK_USER}
 DOCKER_CGROUP_DRIVER=${DOCKER_CGROUP_DRIVER:-}
 ENABLE_CLEAR_CONTAINER=$(trueorfalse False ENABLE_CLEAR_CONTAINER)
+ENABLE_LIVE_RESTORE=$(trueorfalse False ENABLE_LIVE_RESTORE)
 
 # Functions
 # ---------
@@ -108,10 +109,16 @@ function configure_docker {
     fi
     local docker_config_file=/etc/docker/daemon.json
     local debug
+    local live_restore
     if [[ "$ENABLE_DEBUG_LOG_LEVEL" == "True" ]]; then
         debug=true
     else
         debug=false
+    fi
+    if [[ "$ENABLE_LIVE_RESTORE" == "True" ]]; then
+        live_restore=true
+    else
+        live_restore=false
     fi
     sudo mkdir -p $(dirname ${docker_config_file})
     cat <<EOF | sudo tee $docker_config_file >/dev/null
@@ -119,6 +126,7 @@ function configure_docker {
     $cluster_store_opts
     $runtime_opts
     "debug": ${debug},
+    "live-restore": ${live_restore},
     "group": "$DOCKER_GROUP",
 EOF
     if [[ -n "$DOCKER_CGROUP_DRIVER" ]]; then

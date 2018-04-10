@@ -2,6 +2,7 @@
 
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
 ENABLE_CLEAR_CONTAINER=${ENABLE_CLEAR_CONTAINER:-false}
+ENABLE_LIVE_RESTORE=${ENABLE_LIVE_RESTORE:-false}
 
 # Enable container services
 enable_service container
