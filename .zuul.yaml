@@ -1,0 +1,8 @@
+- project:
+    check:
+      jobs:
+        - legacy-devstack-plugin-container-dsvm:
+            voting: false
+    gate:
+      jobs:
+        - noop
