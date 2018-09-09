@@ -1,7 +1,18 @@
+- job:
+    name: devstack-plugin-container-dsvm
+    parent: legacy-dsvm-base
+    run: playbooks/devstack-plugin-container-dsvm/run.yaml
+    post-run: playbooks/devstack-plugin-container-dsvm/post.yaml
+    timeout: 4200
+    required-projects:
+      - openstack-dev/devstack
+      - openstack-infra/devstack-gate
+      - openstack/devstack-plugin-container
+
 - project:
     check:
       jobs:
-        - legacy-devstack-plugin-container-dsvm:
+        - devstack-plugin-container-dsvm:
             voting: false
     gate:
       jobs:
