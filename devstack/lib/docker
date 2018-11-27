@@ -48,10 +48,12 @@ function install_docker {
     local dist_version=${os_CODENAME}
     local arch=$(dpkg --print-architecture)
     if is_ubuntu; then
-        if uname -r | grep -q -- '-generic' && dpkg -l 'linux-image-*-generic' | grep -qE '^ii|^hi' 2>/dev/null; then
-            apt_get install linux-image-extra-$(uname -r) linux-image-extra-virtual
-        else
-            (>&2 echo "WARNING: Current kernel is not supported by the linux-image-extra-virtual package. Docker may not work.")
+        if [[ ${dist_version} == 'trusty' ]]; then
+            if uname -r | grep -q -- '-generic' && dpkg -l 'linux-image-*-generic' | grep -qE '^ii|^hi' 2>/dev/null; then
+                apt_get install linux-image-extra-$(uname -r) linux-image-extra-virtual
+            else
+                (>&2 echo "WARNING: Current kernel is not supported by the linux-image-extra-virtual package. Docker may not work.")
+            fi
         fi
         apt_get install apt-transport-https ca-certificates software-properties-common
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
