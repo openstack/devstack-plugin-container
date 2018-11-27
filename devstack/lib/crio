@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# Dependencies:
+#
+# - functions
+
+# stack.sh
+# ---------
+# - check_crio
+# - install_crio
+# - configure_crio
+# - stop_crio
+
+# Save trace setting
+_XTRACE_DOCKER=$(set +o | grep xtrace)
+set +o xtrace
+
+
+# Defaults
+# --------
+
+CRIO_ENGINE_SOCKET_FILE=${CRIO_ENGINE_SOCKET_FILE:-/var/run/crio/crio.sock}
+
+# Functions
+# ---------
+
+function check_crio {
+    if is_ubuntu; then
+       dpkg -l | grep crio-o > /dev/null 2>&1
+    else
+       false
+       # TODO: CentOS/Fedora support.
+    fi
+}
+
+function install_crio {
+    if [[ -z "$os_PACKAGE" ]]; then
+        GetOSVersion
+    fi
+
+    local lsb_dist=${os_VENDOR,,}
+    local dist_version=${os_CODENAME}
+    local arch=$(dpkg --print-architecture)
+    if is_ubuntu; then
+        apt_get install apt-transport-https ca-certificates software-properties-common
+        sudo add-apt-repository -y ppa:projectatomic/ppa
+        # Installing podman and containerd will get us compatible versions of
+        # cri-o and runc. And we need podman to manage container images anyway.
+        apt_get install podman buildah
+    elif is_fedora; then
+        false
+        # TODO(dulek): CentOS/Fedora support
+    fi
+}
+
+function configure_crio {
+    # After an ./unstack it will be stopped. So it is ok if it returns exit-code == 1
+    sudo systemctl stop crio.service || true
+
+    local crio_conf
+    crio_conf=/etc/crio/crio.conf
+
+    # We're wrapping values in "\<val>\" because that's the format cri-o wants.
+    iniset -sudo ${crio_conf} crio.api listen \"${CRIO_ENGINE_SOCKET_FILE}\"
+    if [[ "$ENABLE_DEBUG_LOG_LEVEL" == "True" ]]; then
+        # debug is way too verbose, info will be enough
+        iniset -sudo ${crio_conf} crio.runtime log_level \"info\"
+    fi
+    if is_ubuntu; then
+        # In Ubuntu's a special vendored version of runc is installed with
+        # cri-o. This means that it'll not work with the system's version of
+        # runc. Moreover vendored runc is not placed into /usr/bin, where
+        # crio.conf states that it will be. We fix that by linking the vendored
+        # binary to /usr/bin.
+        if [[ ! -e /usr/bin/runc ]]; then
+            sudo ln -s /usr/lib/cri-o-runc/sbin/runc /usr/bin/runc
+            sudo chmod +x /usr/bin/runc
+        fi
+
+        # At least for 18.04 we need to set up /etc/containers/registries.conf
+        # with some initial content. That's another bug with that PPA.
+        local registries_conf
+        registries_conf="/etc/containers/registries.conf"
+        if [[ ! -f ${registries_conf} ]]; then
+            sudo mkdir -p `dirname ${registries_conf}`
+            cat << EOF | sudo tee ${registries_conf}
+[registries.search]
+registries = ['docker.io']
+EOF
+        fi
+    fi
+
+    sudo systemctl --no-block restart crio.service
+}
+
+function stop_crio {
+    sudo systemctl stop crio.service || true
+}
+
+# Restore xtrace
+$_XTRACE_DOCKER
