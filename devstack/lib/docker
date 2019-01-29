@@ -28,6 +28,7 @@ DOCKER_GROUP=${DOCKER_GROUP:-$STACK_USER}
 DOCKER_CGROUP_DRIVER=${DOCKER_CGROUP_DRIVER:-}
 ENABLE_CLEAR_CONTAINER=$(trueorfalse False ENABLE_CLEAR_CONTAINER)
 ENABLE_LIVE_RESTORE=$(trueorfalse False ENABLE_LIVE_RESTORE)
+ENABLE_IPV6=$(trueorfalse False ENABLE_IPV6)
 
 # Functions
 # ---------
@@ -112,6 +113,7 @@ function configure_docker {
     local docker_config_file=/etc/docker/daemon.json
     local debug
     local live_restore
+    local ipv6
     if [[ "$ENABLE_DEBUG_LOG_LEVEL" == "True" ]]; then
         debug=true
     else
@@ -122,6 +124,11 @@ function configure_docker {
     else
         live_restore=false
     fi
+    if [[ "$ENABLE_IPV6" == "True" ]]; then
+        ipv6=true
+    else
+        ipv6=false
+    fi
     sudo mkdir -p $(dirname ${docker_config_file})
     cat <<EOF | sudo tee $docker_config_file >/dev/null
 {
@@ -129,6 +136,7 @@ function configure_docker {
     $runtime_opts
     "debug": ${debug},
     "live-restore": ${live_restore},
+    "ipv6": ${ipv6},
     "group": "$DOCKER_GROUP",
 EOF
     if [[ -n "$DOCKER_CGROUP_DRIVER" ]]; then
