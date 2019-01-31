@@ -48,8 +48,15 @@ function install_crio {
         # cri-o and runc. And we need podman to manage container images anyway.
         apt_get install podman buildah
     elif is_fedora; then
-        false
-        # TODO(dulek): CentOS/Fedora support
+        if [[ "$lsb_dist" = "centos" ]]; then
+            sudo yum-config-manager \
+                --add-repo \
+                https://cbs.centos.org/repos/virt7-container-common-candidate/x86_64/os/
+            sudo yum-config-manager \
+                --add-repo \
+                https://cbs.centos.org/repos/paas7-crio-311-candidate/x86_64/os/
+        fi
+        yum_install cri-o podman buildah
     fi
 }
 
@@ -60,7 +67,7 @@ function configure_crio {
     local crio_conf
     crio_conf=/etc/crio/crio.conf
 
-    # We're wrapping values in "\<val>\" because that's the format cri-o wants.
+    # We're wrapping values in \"<val>\" because that's the format cri-o wants.
     iniset -sudo ${crio_conf} crio.api listen \"${CRIO_ENGINE_SOCKET_FILE}\"
     if [[ "$ENABLE_DEBUG_LOG_LEVEL" == "True" ]]; then
         # debug is way too verbose, info will be enough
@@ -87,6 +94,16 @@ function configure_crio {
 [registries.search]
 registries = ['docker.io']
 EOF
+        fi
+    elif is_fedora; then
+        local lsb_dist=${os_VENDOR,,}
+
+        if [[ "$lsb_dist" = "centos" ]]; then
+            # CentOS packages are putting runc binary in different place...
+            iniset -sudo ${crio_conf} crio.runtime runtime \"/usr/sbin/runc\"
+
+            # CentOS version seems to only work with cgroupfs...
+            iniset -sudo ${crio_conf} crio.runtime cgroup_manager \"cgroupfs\"
         fi
     fi
 
