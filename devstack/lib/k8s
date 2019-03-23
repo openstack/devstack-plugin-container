@@ -1,0 +1,154 @@
+#!/bin/bash
+
+# Dependencies:
+#
+# - functions
+# - ``STACK_USER`` must be defined
+
+# stack.sh
+# --------
+# - install_k8s
+
+# The following variables are assumed to be defined by certain functions:
+#
+# - ``http_proxy`` ``https_proxy`` ``no_proxy``
+
+# Save trace setting
+_XTRACE_DOCKER=$(set +o | grep xtrace)
+set +o xtrace
+
+
+# Defaults
+# --------
+
+K8S_TOKEN=${K8S_TOKEN:-""}
+K8S_API_SERVER_IP=${K8S_API_SERVER_IP:-$SERVICE_HOST}
+K8S_NODE_IP=${K8S_NODE_IP:-$HOST_IP}
+K8S_API_SERVER_PORT=${K8S_API_SERVER_PORT:-6443}
+K8S_POD_NETWORK_CIDR=${K8S_POD_NETWORK_CIDR:-10.244.0.0/16}
+K8S_SERVICE_NETWORK_CIDR=${K8S_SERVICE_NETWORK_CIDR:-10.96.0.0/12}
+K8S_VERSION=${K8S_VERSION:-1.14.1-00}
+K8S_NETWORK_ADDON=${K8S_NETWORK_ADDON:-flannel}
+
+# Functions
+# ---------
+
+function is_k8s_enabled {
+    [[ ,${ENABLED_SERVICES} =~ ,"k8s-" ]] && return 0
+    return 1
+}
+
+function install_kubeadm {
+    if is_ubuntu; then
+        apt_get install apt-transport-https curl
+        curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+        sudo add-apt-repository -y \
+            "deb https://apt.kubernetes.io/ kubernetes-xenial main"
+        REPOS_UPDATED=False apt_get_update
+        apt_get install kubelet=$K8S_VERSION kubeadm=$K8S_VERSION kubectl=$K8S_VERSION
+        sudo apt-mark hold kubelet kubeadm kubectl
+        # NOTE(hongbin): This work-around an issue that kubelet pick a wrong
+        # IP address if the node has multiple network interfaces.
+        # See https://github.com/kubernetes/kubeadm/issues/203
+        echo "KUBELET_EXTRA_ARGS=--node-ip=$K8S_NODE_IP" | sudo tee -a /etc/default/kubelet
+        sudo systemctl daemon-reload && sudo systemctl restart kubelet
+    else
+        (>&2 echo "WARNING: kubeadm installation is not supported in this distribution.")
+    fi
+}
+
+function kubeadm_init {
+    local kubeadm_config_file=$(mktemp)
+    cat <<EOF | sudo tee $kubeadm_config_file >/dev/null
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: ClusterConfiguration
+etcd:
+  external:
+    endpoints:
+    - "http://${SERVICE_HOST}:${ETCD_PORT}"
+networking:
+  podSubnet: "${K8S_POD_NETWORK_CIDR}"
+  serviceSubnet: "${K8S_SERVICE_NETWORK_CIDR}"
+---
+apiVersion: kubeadm.k8s.io/v1beta1
+bootstrapTokens:
+- token: "${K8S_TOKEN}"
+  ttl: 0s
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "${K8S_API_SERVER_IP}"
+  bindPort: ${K8S_API_SERVER_PORT}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+failSwapOn: false
+EOF
+    sudo kubeadm init --config $kubeadm_config_file --ignore-preflight-errors Swap
+
+    local kube_config_file=$HOME/.kube/config
+    sudo mkdir -p $(dirname ${kube_config_file})
+    sudo cp /etc/kubernetes/admin.conf $kube_config_file
+    safe_chown $STACK_USER:$STACK_USER $kube_config_file
+
+    if [[ "$K8S_NETWORK_ADDON" == "flannel" ]]; then
+        kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/a70459be0084506e4ec919aa1c114638878db11b/Documentation/kube-flannel.yml
+    fi
+}
+
+function kubeadm_join {
+    local kubeadm_config_file=$(mktemp)
+    cat <<EOF | sudo tee $kubeadm_config_file >/dev/null
+apiVersion: kubeadm.k8s.io/v1beta1
+kind: JoinConfiguration
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: "${K8S_API_SERVER_IP}:${K8S_API_SERVER_PORT}"
+    token: "${K8S_TOKEN}"
+    unsafeSkipCAVerification: true
+  tlsBootstrapToken: "${K8S_TOKEN}"
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+failSwapOn: false
+EOF
+    sudo kubeadm join --config $kubeadm_config_file --ignore-preflight-errors Swap
+}
+
+function start_collect_logs {
+    wait_for_kube_service 180 component=kube-controller-manager
+    wait_for_kube_service 60 component=kube-apiserver
+    wait_for_kube_service 30 component=kube-scheduler
+    wait_for_kube_service 30 k8s-app=kube-proxy
+    run_process kube-controller-manager "/usr/bin/kubectl logs -n kube-system -f -l component=kube-controller-manager"
+    run_process kube-apiserver "/usr/bin/kubectl logs -n kube-system -f -l component=kube-apiserver"
+    run_process kube-scheduler "/usr/bin/kubectl logs -n kube-system -f -l component=kube-scheduler"
+    run_process kube-proxy "/usr/bin/kubectl logs -n kube-system -f -l k8s-app=kube-proxy"
+}
+
+function wait_for_kube_service {
+    local timeout=$1
+    local selector=$2
+    local rval=0
+    time_start "wait_for_service"
+    timeout $timeout bash -x <<EOF || rval=$?
+        NAME=""
+        while [[ "\$NAME" == "" ]]; do
+            sleep 1
+            NAME=\$(kubectl wait --for=condition=Ready pod -n kube-system -l $selector -o name)
+        done
+EOF
+    time_stop "wait_for_service"
+    # Figure out what's happening on platforms where this doesn't work
+    if [[ "$rval" != 0 ]]; then
+        echo "Didn't find kube service after $timeout seconds"
+        kubectl get pods -n kube-system -l $selector
+    fi
+    return $rval
+}
+
+function kubeadm_reset {
+    sudo kubeadm reset --force
+}
+
+# Restore xtrace
+$_XTRACE_DOCKER

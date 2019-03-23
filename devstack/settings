@@ -8,3 +8,11 @@ ENABLE_IPV6=${ENABLE_IPV6:-false}
 
 # Enable container services
 enable_service container
+
+# Enable k8s services
+if [[ ,${ENABLED_SERVICES} =~ ,"k8s-master" ]]; then
+    enable_service kube-controller-manager
+    enable_service kube-apiserver
+    enable_service kube-scheduler
+    enable_service kube-proxy
+fi

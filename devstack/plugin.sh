@@ -7,6 +7,7 @@ set -o xtrace
 echo_summary "container's plugin.sh was called..."
 source $DEST/devstack-plugin-container/devstack/lib/docker
 source $DEST/devstack-plugin-container/devstack/lib/crio
+source $DEST/devstack-plugin-container/devstack/lib/k8s
 (set -o posix; set)
 
 if is_service_enabled container; then
@@ -32,6 +33,31 @@ if is_service_enabled container; then
         elif [[ ${CONTAINER_ENGINE} == "crio" ]]; then
             stop_crio
         fi
+    fi
+
+    if [[ "$1" == "clean" ]]; then
+        # nothing needed here
+        :
+    fi
+fi
+
+if is_k8s_enabled; then
+    if [[ "$1" == "stack" && "$2" == "install" ]]; then
+        install_kubeadm
+    elif [[ "$1" == "stack" && "$2" == "post-config" ]]; then
+        if is_service_enabled k8s-master; then
+            kubeadm_init
+        elif is_service_enabled k8s-node; then
+            kubeadm_join
+        fi
+    elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
+        if is_service_enabled k8s-master; then
+            start_collect_logs
+        fi
+    fi
+
+    if [[ "$1" == "unstack" ]]; then
+        kubeadm_reset
     fi
 
     if [[ "$1" == "clean" ]]; then
