@@ -25,7 +25,7 @@ For more info on devstack installation follow the below link:
 
      cat > /opt/stack/devstack/local.conf << END
      [[local|localrc]]
-     enable_plugin devstack-plugin-container https://git.openstack.org/openstack/devstack-plugin-container
+     enable_plugin devstack-plugin-container https://opendev.org/openstack/devstack-plugin-container
      END
 
 3. Run devstack
