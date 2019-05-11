@@ -12,8 +12,7 @@
 - project:
     check:
       jobs:
-        - devstack-plugin-container-dsvm:
-            voting: false
+        - devstack-plugin-container-dsvm
     gate:
       jobs:
-        - noop
+        - devstack-plugin-container-dsvm
