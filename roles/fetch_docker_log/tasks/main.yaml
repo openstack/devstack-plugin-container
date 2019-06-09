@@ -1,0 +1,22 @@
+- name: Ensure log path exists
+  become: yes
+  file:
+    path: "{{ ansible_user_dir }}/logs"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: 0775
+
+- name: Store docker log in {{ ansible_user_dir }}/logs
+  become: yes
+  shell:
+    cmd: |
+      sudo journalctl -o short-precise --unit docker | sudo tee {{ ansible_user_dir }}/logs/docker.log > /dev/null
+
+- name: Set docker.log file permissions
+  become: yes
+  file:
+    path: '{{ ansible_user_dir }}/logs/docker.log'
+    owner: '{{ ansible_user }}'
+    group: '{{ ansible_user }}'
+    mode: 0644
