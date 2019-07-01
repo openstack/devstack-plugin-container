@@ -36,8 +36,9 @@ if is_service_enabled container; then
     fi
 
     if [[ "$1" == "clean" ]]; then
-        # nothing needed here
-        :
+        if [[ ${CONTAINER_ENGINE} == "docker" ]]; then
+            cleanup_docker
+        fi
     fi
 fi
 

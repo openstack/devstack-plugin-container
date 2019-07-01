@@ -31,6 +31,16 @@ For installing container engine only, using the following config:
      enable_plugin devstack-plugin-container https://opendev.org/openstack/devstack-plugin-container
      END
 
+For installing Kata Containers, using the following config:
+
+.. code-block:: ini
+
+     cat > /opt/stack/devstack/local.conf << END
+     [[local|localrc]]
+     enable_plugin devstack-plugin-container https://opendev.org/openstack/devstack-plugin-container
+     ENABLE_KATA_CONTAINERS=True
+     END
+
 For installing Kubernetes, using the following config in master node:
 
 .. code-block:: ini

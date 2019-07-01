@@ -2,7 +2,9 @@
 
 # Supported options are "docker" and "crio".
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-docker}
+# TODO(hongbin): deprecate and remove clear container
 ENABLE_CLEAR_CONTAINER=${ENABLE_CLEAR_CONTAINER:-false}
+ENABLE_KATA_CONTAINERS=${ENABLE_KATA_CONTAINERS:-false}
 ENABLE_LIVE_RESTORE=${ENABLE_LIVE_RESTORE:-false}
 ENABLE_IPV6=${ENABLE_IPV6:-false}
 

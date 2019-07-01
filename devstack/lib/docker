@@ -26,9 +26,12 @@ DOCKER_ENGINE_PORT=${DOCKER_ENGINE_PORT:-2375}
 DOCKER_CLUSTER_STORE=${DOCKER_CLUSTER_STORE:-}
 DOCKER_GROUP=${DOCKER_GROUP:-$STACK_USER}
 DOCKER_CGROUP_DRIVER=${DOCKER_CGROUP_DRIVER:-}
+# TODO(hongbin): deprecate and remove clear container
 ENABLE_CLEAR_CONTAINER=$(trueorfalse False ENABLE_CLEAR_CONTAINER)
+ENABLE_KATA_CONTAINERS=$(trueorfalse False ENABLE_KATA_CONTAINERS)
 ENABLE_LIVE_RESTORE=$(trueorfalse False ENABLE_LIVE_RESTORE)
 ENABLE_IPV6=$(trueorfalse False ENABLE_IPV6)
+KATA_BRANCH=${KATA_BRANCH:-master}
 
 # Functions
 # ---------
@@ -77,9 +80,23 @@ function install_docker {
         fi
         yum_install docker-ce
     fi
-    if [[ "$ENABLE_CLEAR_CONTAINER" == "True" ]]; then
+    if [[ "$ENABLE_KATA_CONTAINERS" == "True" ]]; then
+        # Kata Containers can't run inside VM, so check whether virtualization
+        # is enabled or not
+        if sudo grep -E 'svm|vmx' /proc/cpuinfo &> /dev/null; then
+            if is_ubuntu; then
+                install_kata_container_ubuntu
+            elif is_fedora; then
+                install_kata_container_fedora
+            fi
+        else
+            (>&2 echo "WARNING: Kata Containers needs the CPU extensions svm or vmx which is not enabled. Skipping Kata Containers installation.")
+        fi
+    # TODO(hongbin): deprecate and remove clear container
+    elif [[ "$ENABLE_CLEAR_CONTAINER" == "True" ]]; then
         # Clear Container can't run inside VM, so check whether virtualization
         # is enabled or not
+        (>&2 echo "WARNING: Clear Container support is deprecated in Train release and will be removed in U release.")
         if sudo grep -E 'svm|vmx' /proc/cpuinfo &> /dev/null; then
             if is_ubuntu; then
                 install_clear_container_ubuntu
@@ -101,7 +118,18 @@ function configure_docker {
         cluster_store_opts+="\"cluster-store\": \"$DOCKER_CLUSTER_STORE\","
     fi
     local runtime_opts=""
-    if [[ "$ENABLE_CLEAR_CONTAINER" == "True" ]]; then
+    if [[ "$ENABLE_KATA_CONTAINERS" == "True" ]]; then
+        if sudo grep -E 'svm|vmx' /proc/cpuinfo &> /dev/null; then
+            runtime_opts+="\"runtimes\": {
+                \"kata-runtime\": {
+                    \"path\": \"/usr/bin/kata-runtime\"
+                }
+            },
+            \"default-runtime\": \"kata-runtime\","
+        fi
+    # TODO(hongbin): deprecate and remove clear container
+    elif [[ "$ENABLE_CLEAR_CONTAINER" == "True" ]]; then
+        (>&2 echo "WARNING: Clear Container support is deprecated in Train release and will be removed in U release.")
         if sudo grep -E 'svm|vmx' /proc/cpuinfo &> /dev/null; then
             runtime_opts+="\"runtimes\": {
                 \"cor\": {
@@ -172,6 +200,11 @@ function stop_docker {
     sudo systemctl stop docker.service || true
 }
 
+function cleanup_docker {
+    uninstall_package docker-ce
+}
+
+# TODO(hongbin): deprecate and remove clear container
 function install_clear_container_ubuntu {
     sudo sh -c "echo 'deb http://download.opensuse.org/repositories/home:/clearlinux:/preview:/clear-containers-2.1/xUbuntu_$(lsb_release -rs)/ /' >> /etc/apt/sources.list.d/cc-oci-runtime.list"
     curl -fsSL http://download.opensuse.org/repositories/home:/clearlinux:/preview:/clear-containers-2.1/xUbuntu_$(lsb_release -rs)/Release.key | sudo apt-key add -
@@ -179,6 +212,7 @@ function install_clear_container_ubuntu {
     apt_get install cc-oci-runtime
 }
 
+# TODO(hongbin): deprecate and remove clear container
 function install_clear_container_fedora {
     source /etc/os-release
     local lsb_dist=${os_VENDOR,,}
@@ -188,6 +222,32 @@ function install_clear_container_fedora {
             http://download.opensuse.org/repositories/home:clearlinux:preview:clear-containers-2.1/Fedora\_$VERSION_ID/home:clearlinux:preview:clear-containers-2.1.repo
     fi
     yum_install cc-oci-runtime linux-container
+}
+
+function install_kata_container_ubuntu {
+    sudo sh -c "echo 'deb http://download.opensuse.org/repositories/home:/katacontainers:/releases:/$(arch):/${KATA_BRANCH}/xUbuntu_${os_RELEASE}/ /' \
+        > /etc/apt/sources.list.d/kata-containers.list"
+    curl -sL  http://download.opensuse.org/repositories/home:/katacontainers:/releases:/$(arch):/${KATA_BRANCH}/xUbuntu_${os_RELEASE}/Release.key \
+        | sudo apt-key add -
+    REPOS_UPDATED=False apt_get_update
+    apt_get install kata-runtime kata-proxy kata-shim
+}
+
+function install_kata_container_fedora {
+    source /etc/os-release
+    if [[ -x $(command -v dnf 2>/dev/null) ]]; then
+        sudo dnf -y install dnf-plugins-core
+        sudo -E dnf config-manager --add-repo \
+            "http://download.opensuse.org/repositories/home:/katacontainers:/releases:/$(arch):/${KATA_BRANCH}/Fedora_${VERSION_ID}/home:katacontainers:releases:$(arch):${KATA_BRANCH}.repo"
+    elif [[ -x $(command -v yum 2>/dev/null) ]]; then
+        # all rh patforms (fedora, centos, rhel) have this pkg
+        sudo yum -y install yum-utils
+        sudo -E yum-config-manager --add-repo \
+            "http://download.opensuse.org/repositories/home:/katacontainers:/releases:/$(arch):/${KATA_BRANCH}/CentOS_${VERSION_ID}/home:katacontainers:releases:$(arch):${KATA_BRANCH}.repo"
+    else
+        die $LINENO "Unable to find or auto-install Kata Containers"
+    fi
+    yum_install kata-runtime kata-proxy kata-shim
 }
 
 # Restore xtrace

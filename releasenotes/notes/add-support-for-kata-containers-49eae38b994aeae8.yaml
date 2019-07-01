@@ -1,0 +1,11 @@
+---
+prelude: >
+    Support installing Kata Containers.
+features:
+  - |
+    In this release, it adds support for Kata Containers and configure it
+    to work with Docker.
+deprecations:
+  - |
+    The support of Clear Container is deprecated in this release and will be
+    removed in the next release.
