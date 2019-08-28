@@ -1,0 +1,29 @@
+- hosts: controller
+  name: Verify that k8s is installed correctly by running a pod
+  tasks:
+    - shell:
+        cmd: |
+          set -e
+          set -x
+
+          kubectl get nodes
+          kubectl get pods --namespace kube-system
+
+          tmpfile=$(mktemp)
+          cat <<EOT > $tmpfile
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: myapp-pod
+            labels:
+              app: myapp
+          spec:
+            containers:
+            - name: myapp-container
+              image: busybox
+              command: ['sh', '-c', 'echo Hello Kubernetes! && sleep 3600']
+          EOT
+          kubectl create -f $tmpfile
+          kubectl wait --for=condition=Ready pod myapp-pod
+      become: true
+      become_user: stack

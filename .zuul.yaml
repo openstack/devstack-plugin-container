@@ -15,10 +15,47 @@
       devstack_plugins:
         devstack-plugin-container: https://opendev.org/openstack/devstack-plugin-container
 
+- job:
+    name: devstack-plugin-container-k8s
+    parent: devstack-minimal
+    nodeset: openstack-two-node-bionic
+    pre-run: playbooks/devstack-plugin-container-k8s/pre.yaml
+    run: playbooks/devstack-plugin-container-k8s/run.yaml
+    post-run: playbooks/devstack-plugin-container-k8s/post.yaml
+    timeout: 7200
+    required-projects:
+      - openstack/devstack
+      - openstack/devstack-gate
+      - openstack/devstack-plugin-container
+    vars:
+      devstack_services:
+        # Ignore any default set by devstack. Emit a "disable_all_services".
+        base: false
+        etcd3: true
+        container: true
+        k8s-master: true
+      devstack_localrc:
+        K8S_TOKEN: "9agf12.zsu5uh2m4pzt3qba"
+        USE_PYTHON3: true
+      devstack_plugins:
+        devstack-plugin-container: https://opendev.org/openstack/devstack-plugin-container
+    group-vars:
+      subnode:
+        devstack_services:
+          # Ignore any default set by devstack. Emit a "disable_all_services".
+          base: false
+          container: true
+          k8s-node: true
+        devstack_localrc:
+          K8S_TOKEN: "9agf12.zsu5uh2m4pzt3qba"
+          USE_PYTHON3: true
+
 - project:
     check:
       jobs:
         - devstack-plugin-container-dsvm
+        - devstack-plugin-container-k8s:
+            voting: false
     gate:
       jobs:
         - devstack-plugin-container-dsvm

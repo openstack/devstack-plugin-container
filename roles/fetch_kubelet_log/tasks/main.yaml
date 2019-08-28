@@ -1,0 +1,22 @@
+- name: Ensure log path exists
+  become: yes
+  file:
+    path: "{{ ansible_user_dir }}/logs"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: 0775
+
+- name: Store kubelet log in {{ ansible_user_dir }}/logs
+  become: yes
+  shell:
+    cmd: |
+      sudo journalctl -o short-precise --unit kubelet | sudo tee {{ ansible_user_dir }}/logs/kubelet.log > /dev/null
+
+- name: Set kubelet.log file permissions
+  become: yes
+  file:
+    path: '{{ ansible_user_dir }}/logs/kubelet.log'
+    owner: '{{ ansible_user }}'
+    group: '{{ ansible_user }}'
+    mode: 0644
