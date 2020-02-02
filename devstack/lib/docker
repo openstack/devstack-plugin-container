@@ -29,9 +29,13 @@ DOCKER_CGROUP_DRIVER=${DOCKER_CGROUP_DRIVER:-}
 # TODO(hongbin): deprecate and remove clear container
 ENABLE_CLEAR_CONTAINER=$(trueorfalse False ENABLE_CLEAR_CONTAINER)
 ENABLE_KATA_CONTAINERS=$(trueorfalse False ENABLE_KATA_CONTAINERS)
+ENABLE_CONTAINERD_CRI=$(trueorfalse False ENABLE_CONTAINERD_CRI)
 ENABLE_LIVE_RESTORE=$(trueorfalse False ENABLE_LIVE_RESTORE)
 ENABLE_IPV6=$(trueorfalse False ENABLE_IPV6)
 KATA_BRANCH=${KATA_BRANCH:-master}
+
+CONTAINERD_CONF_DIR=/etc/containerd
+CONTAINERD_CONF=$CONTAINERD_CONF_DIR/config.toml
 
 # Functions
 # ---------
@@ -107,9 +111,27 @@ function install_docker {
             (>&2 echo "WARNING: Clear Container needs the CPU extensions svm or vmx which is not enabled. Skipping Clear Container installation.")
         fi
     fi
+
+    if [[ "$ENABLE_CONTAINERD_CRI" == "True" ]]; then
+        source $DEST/devstack-plugin-container/devstack/lib/cni/plugins
+        install_cni_plugins
+
+        source $DEST/devstack-plugin-container/devstack/lib/tools/crictl
+        install_crictl
+    fi
 }
 
 function configure_docker {
+    if [[ ${ENABLE_CONTAINERD_CRI} == "True" ]]; then
+        configure_containerd
+
+        source $DEST/devstack-plugin-container/devstack/lib/cni/plugins
+        configure_cni_plugins
+
+        source $DEST/devstack-plugin-container/devstack/lib/tools/crictl
+        configure_crictl
+    fi
+
     # After an ./unstack it will be stopped. So it is ok if it returns exit-code == 1
     sudo systemctl stop docker.service || true
 
@@ -194,6 +216,17 @@ Environment="HTTP_PROXY=$http_proxy" "HTTPS_PROXY=$https_proxy" "NO_PROXY=$no_pr
 EOF
     sudo systemctl daemon-reload
     sudo systemctl --no-block restart docker.service
+}
+
+function configure_containerd {
+    sudo mkdir -p $CONTAINERD_CONF_DIR
+    sudo chown -R $STACK_USER $CONTAINERD_CONF_DIR
+
+    containerd config default > $CONTAINERD_CONF
+    stack_user_gid=$(getent group $STACK_USER | cut -d: -f3)
+    sed -i "s/gid = [0-9]*/gid = ${stack_user_gid}/" $CONTAINERD_CONF
+    sed -i "s/level = \"\"/level = \"debug\"/" $CONTAINERD_CONF
+    sudo systemctl --no-block restart containerd.service
 }
 
 function stop_docker {

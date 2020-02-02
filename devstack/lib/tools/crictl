@@ -1,0 +1,76 @@
+#!/bin/bash
+#
+# lib/tools/crictl
+# CRI command line tools functions
+
+# Dependencies:
+# ``functions`` file
+# ``STACK_USER`` has to be defined
+
+# Save trace setting
+_XTRACE_CONTAINER_TOOLS_CRICTL=$(set +o | grep xtrace)
+set +o xtrace
+
+# Defaults
+# --------
+
+CRICTL_BIN_DIR=/usr/local/bin
+
+CRICTL_VERSION=${CRICTL_VERSION:-v1.17.0}
+CRICTL_SHA256_AMD64=${CRICTL_SHA256_AMD64:-"7b72073797f638f099ed19550d52e9b9067672523fc51b746e65d7aa0bafa414"}
+CRICTL_SHA256_ARM64=${CRICTL_SHA256_ARM64:-"d89afd89c2852509fafeaff6534d456272360fcee732a8d0cb89476377387e12"}
+CRICTL_SHA256_PPC64=${CRICTL_SHA256_PPC64:-"a61c52b9ac5bffe94ae4c09763083c60f3eccd30eb351017b310f32d1cafb855"}
+CRICTL_SHA256_S390X=${CRICTL_SHA256_S390X:-"0db445f0b74ecb51708b710480a462b728174155c5f2709a39d1cc2dc975e350"}
+# Make sure downloads the correct architecture
+if is_arch "x86_64"; then
+    CRICTL_ARCH="amd64"
+    CRICTL_SHA256=${CRICTL_SHA256:-$CRICTL_SHA256_AMD64}
+elif is_arch "aarch64"; then
+    CRICTL_ARCH="arm64"
+    CRICTL_SHA256=${CRICTL_SHA256:-$CRICTL_SHA256_ARM64}
+elif is_arch "ppc64le"; then
+    CRICTL_ARCH="ppc64le"
+    CRICTL_SHA256=${CRICTL_SHA256:-$CRICTL_SHA256_PPC64}
+elif is_arch "s390x"; then
+    CRICTL_ARCH="s390x"
+    CRICTL_SHA256=${CRICTL_SHA256:-$CRICTL_SHA256_S390X}
+else
+    exit_distro_not_supported "invalid hardware type"
+fi
+CRICTL_DOWNLOAD_URL=${CRICTL_DOWNLOAD_URL:-https://github.com/kubernetes-sigs/cri-tools/releases/download}
+CRICTL_DOWNLOAD_FILE=crictl-$CRICTL_VERSION-linux-$CRICTL_ARCH.tar.gz
+CRICTL_DOWNLOAD_LOCATION=$CRICTL_DOWNLOAD_URL/$CRICTL_VERSION/$CRICTL_DOWNLOAD_FILE
+
+
+# Installs crictl tools.
+function install_crictl {
+    echo "Installing CRI command-line tools"
+
+    # Download and cache the crictl tar for subsequent use
+    local crictl_file
+    crictl_file="$(get_extra_file $CRICTL_DOWNLOAD_LOCATION)"
+    if [ ! -f "$FILES/crictl" ]; then
+        echo "${CRICTL_SHA256} $crictl_file" > $FILES/crictl.sha256sum
+        # remove the damaged file when checksum fails
+        sha256sum -c $FILES/crictl.sha256sum || (sudo rm -f $crictl_file; exit 1)
+
+        tar xzvf $crictl_file -C $FILES
+        sudo install -o "$STACK_USER" -m 0555 -D "$FILES/crictl" \
+            "$CRICTL_BIN_DIR/crictl"
+    fi
+}
+
+# Configure crictl tools.
+function configure_crictl {
+    local crictl_config_file=/etc/crictl.yaml
+    cat <<EOF | sudo tee $crictl_config_file >/dev/null
+runtime-endpoint: unix:///run/containerd/containerd.sock
+image-endpoint: unix:///run/containerd/containerd.sock
+timeout: 10
+debug: true
+EOF
+}
+
+
+# Restore xtrace
+$_XTRACE_CONTAINER_TOOLS_CRICTL

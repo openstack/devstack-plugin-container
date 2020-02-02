@@ -1,0 +1,93 @@
+#!/bin/bash
+#
+# lib/cni/plugins
+# Common CNI plugins functions
+
+# Dependencies:
+# ``functions`` file
+# ``STACK_USER`` has to be defined
+
+# Save trace setting
+_XTRACE_CONTAINER_CNI_PLUGINS=$(set +o | grep xtrace)
+set +o xtrace
+
+# Defaults
+# --------
+
+CNI_PLUGINS_BIN_DIR=/opt/cni/bin
+# install all plugins by default
+CNI_PLUGINS_INSTALL_PLUGINS=${CNI_PLUGINS_INSTALL_PLUGINS:-flannel,ptp,host-local,portmap,tuning,vlan,host-device,sample,dhcp,ipvlan,macvlan,loopback,bridge}
+CNI_PLUGINS_CONF_SOURCE_DIR=${CNI_PLUGINS_CONF_SOURCE_DIR:-$DEST/devstack-plugin-container/etc/cni/net.d}
+CNI_PLUGINS_CONF_DIR=${CNI_PLUGINS_CONF_DIR:-/etc/cni/net.d}
+
+CNI_PLUGINS_VERSION=${CNI_PLUGINS_VERSION:-v0.7.1}
+CNI_PLUGINS_SHA256_AMD64=${CNI_PLUGINS_SHA256_AMD64:-"6ecc5c7dbb8e4296b0d0d017e5440618e19605b9aa3b146a2c29af492f299dc7"}
+CNI_PLUGINS_SHA256_ARM64=${CNI_PLUGINS_SHA256_ARM64:-"258080b94bfc54bd54fd0ea7494efc31806aa4b2836ba3f2d189e0fc16fab0ef"}
+CNI_PLUGINS_SHA256_PPC64=${CNI_PLUGINS_SHA256_PPC64:-"a515c45a52e752249bb0e9feac1654c5d38974df6a36148778f6eeab9826f706"}
+CNI_PLUGINS_SHA256_S390X=${CNI_PLUGINS_SHA256_S390X:-"24e31be69a012395f1026cd37d125f5f81001cfc36434d8f7a17b36bc5f1e6ad"}
+# Make sure CNI plugins downloads the correct architecture
+if is_arch "x86_64"; then
+    CNI_PLUGINS_ARCH="amd64"
+    CNI_PLUGINS_SHA256=${CNI_PLUGINS_SHA256:-$CNI_PLUGINS_SHA256_AMD64}
+elif is_arch "aarch64"; then
+    CNI_PLUGINS_ARCH="arm64"
+    CNI_PLUGINS_SHA256=${CNI_PLUGINS_SHA256:-$CNI_PLUGINS_SHA256_ARM64}
+elif is_arch "ppc64le"; then
+    CNI_PLUGINS_ARCH="ppc64le"
+    CNI_PLUGINS_SHA256=${CNI_PLUGINS_SHA256:-$CNI_PLUGINS_SHA256_PPC64}
+elif is_arch "s390x"; then
+    CNI_PLUGINS_ARCH="s390x"
+    CNI_PLUGINS_SHA256=${CNI_PLUGINS_SHA256:-$CNI_PLUGINS_SHA256_S390X}
+else
+    exit_distro_not_supported "invalid hardware type"
+fi
+CNI_PLUGINS_DOWNLOAD_URL=${CNI_PLUGINS_DOWNLOAD_URL:-https://github.com/containernetworking/plugins/releases/download}
+CNI_PLUGINS_DOWNLOAD_FILE=cni-plugins-$CNI_PLUGINS_ARCH-$CNI_PLUGINS_VERSION.tgz
+CNI_PLUGINS_DOWNLOAD_LOCATION=$CNI_PLUGINS_DOWNLOAD_URL/$CNI_PLUGINS_VERSION/$CNI_PLUGINS_DOWNLOAD_FILE
+
+
+# Installs standard cni plugins.
+function install_cni_plugins {
+    echo "Installing CNI standard plugins"
+
+    # Download and cache the cni plugins tgz for subsequent use
+    local plugins_file
+    cni_plugins_file="$(get_extra_file $CNI_PLUGINS_DOWNLOAD_LOCATION)"
+    if [ ! -d "$FILES/cniplugins" ]; then
+        echo "${CNI_PLUGINS_SHA256} $cni_plugins_file" > $FILES/cniplugins.sha256sum
+        # remove the damaged file when checksum fails
+        sha256sum -c $FILES/cniplugins.sha256sum || (sudo rm -f $cni_plugins_file; exit 1)
+
+        mkdir $FILES/cniplugins
+        tar xzvf $cni_plugins_file -C $FILES/cniplugins
+    fi
+    for plugin in ${CNI_PLUGINS_INSTALL_PLUGINS//,/ }; do
+        if [ $(ls $FILES/cniplugins/$plugin 2> /dev/null) ]; then
+            echo "Install plugin: $plugin"
+            sudo install -o "$STACK_USER" -m 0555 -D "$FILES/cniplugins/$plugin" \
+                "$CNI_PLUGINS_BIN_DIR/$plugin"
+        else
+            echo "Skip installing plugin: $plugin"
+        fi
+    done
+}
+
+# Configure cni plugins.
+function configure_cni_plugins {
+    echo "Configuring CNI plugins"
+
+    for plugin in ${CNI_PLUGINS_INSTALL_PLUGINS//,/ }; do
+        local source_config_file=$(ls ${CNI_PLUGINS_CONF_SOURCE_DIR}/*${plugin}.conf 2> /dev/null)
+        if [ $source_config_file ]; then
+            echo "Found config file for plugin: $plugin"
+            sudo install -o "$STACK_USER" -m 0664 -t "$CNI_PLUGINS_CONF_DIR" -D \
+                "${source_config_file}"
+        else
+            echo "Config file not found for plugin: $plugin"
+        fi
+    done
+}
+
+
+# Restore xtrace
+$_XTRACE_CONTAINER_CNI_PLUGINS
