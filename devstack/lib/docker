@@ -123,10 +123,10 @@ function install_docker {
 
 function configure_docker {
     if [[ ${ENABLE_CONTAINERD_CRI} == "True" ]]; then
-        configure_containerd
-
         source $DEST/devstack-plugin-container/devstack/lib/cni/plugins
         configure_cni_plugins
+
+        configure_containerd
 
         source $DEST/devstack-plugin-container/devstack/lib/tools/crictl
         configure_crictl
