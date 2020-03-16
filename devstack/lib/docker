@@ -33,6 +33,7 @@ ENABLE_CONTAINERD_CRI=$(trueorfalse False ENABLE_CONTAINERD_CRI)
 ENABLE_LIVE_RESTORE=$(trueorfalse False ENABLE_LIVE_RESTORE)
 ENABLE_IPV6=$(trueorfalse False ENABLE_IPV6)
 KATA_BRANCH=${KATA_BRANCH:-master}
+KATA_RUNTIME=${KATA_RUNTIME:-kata-runtime}
 
 CONTAINERD_CONF_DIR=/etc/containerd
 CONTAINERD_CONF=$CONTAINERD_CONF_DIR/config.toml
@@ -143,11 +144,11 @@ function configure_docker {
     if [[ "$ENABLE_KATA_CONTAINERS" == "True" ]]; then
         if sudo grep -E 'svm|vmx' /proc/cpuinfo &> /dev/null; then
             runtime_opts+="\"runtimes\": {
-                \"kata-runtime\": {
+                \"$KATA_RUNTIME\": {
                     \"path\": \"/usr/bin/kata-runtime\"
                 }
             },
-            \"default-runtime\": \"kata-runtime\","
+            \"default-runtime\": \"$KATA_RUNTIME\","
         fi
     # TODO(hongbin): deprecate and remove clear container
     elif [[ "$ENABLE_CLEAR_CONTAINER" == "True" ]]; then
@@ -222,10 +223,25 @@ function configure_containerd {
     sudo mkdir -p $CONTAINERD_CONF_DIR
     sudo chown -R $STACK_USER $CONTAINERD_CONF_DIR
 
-    containerd config default > $CONTAINERD_CONF
     stack_user_gid=$(getent group $STACK_USER | cut -d: -f3)
-    sed -i "s/gid = [0-9]*/gid = ${stack_user_gid}/" $CONTAINERD_CONF
-    sed -i "s/level = \"\"/level = \"debug\"/" $CONTAINERD_CONF
+    cat <<EOF | sudo tee $CONTAINERD_CONF >/dev/null
+[grpc]
+  gid = $stack_user_gid
+
+[debug]
+  level = "debug"
+
+EOF
+    if [[ "$ENABLE_KATA_CONTAINERS" == "True" ]]; then
+        cat <<EOF | sudo tee -a $CONTAINERD_CONF >/dev/null
+[plugins]
+  [plugins.cri]
+    [plugins.cri.containerd]
+      [plugins.cri.containerd.runtimes.${KATA_RUNTIME}]
+         runtime_type = "io.containerd.kata.v2"
+EOF
+    fi
+
     sudo systemctl --no-block restart containerd.service
 }
 
@@ -235,6 +251,7 @@ function stop_docker {
 
 function cleanup_docker {
     uninstall_package docker-ce
+    rm -f $CONTAINERD_CONF
 }
 
 # TODO(hongbin): deprecate and remove clear container
