@@ -53,9 +53,11 @@
 - project:
     check:
       jobs:
+        - openstack-tox-bashate
         - devstack-plugin-container-dsvm
         - devstack-plugin-container-k8s:
             voting: false
     gate:
       jobs:
+        - openstack-tox-bashate
         - devstack-plugin-container-dsvm

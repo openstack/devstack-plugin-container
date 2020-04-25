@@ -42,9 +42,9 @@ CONTAINERD_CONF=$CONTAINERD_CONF_DIR/config.toml
 
 function check_docker {
     if is_ubuntu; then
-       dpkg -s docker-engine > /dev/null 2>&1 || dpkg -s docker-ce > /dev/null 2>&1
+        dpkg -s docker-engine > /dev/null 2>&1 || dpkg -s docker-ce > /dev/null 2>&1
     else
-       rpm -q docker-engine > /dev/null 2>&1 || rpm -q docker > /dev/null 2>&1 || rpm -q docker-ce > /dev/null 2>&1
+        rpm -q docker-engine > /dev/null 2>&1 || rpm -q docker > /dev/null 2>&1 || rpm -q docker-ce > /dev/null 2>&1
     fi
 }
 
@@ -55,7 +55,8 @@ function install_docker {
 
     local lsb_dist=${os_VENDOR,,}
     local dist_version=${os_CODENAME}
-    local arch=$(dpkg --print-architecture)
+    local arch
+    arch=$(dpkg --print-architecture)
     if is_ubuntu; then
         if [[ ${dist_version} == 'trusty' ]]; then
             if uname -r | grep -q -- '-generic' && dpkg -l 'linux-image-*-generic' | grep -qE '^ii|^hi' 2>/dev/null; then

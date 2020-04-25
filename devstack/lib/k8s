@@ -58,7 +58,8 @@ function install_kubeadm {
 }
 
 function kubeadm_init {
-    local kubeadm_config_file=$(mktemp)
+    local kubeadm_config_file
+    kubeadm_config_file=$(mktemp)
     cat <<EOF | sudo tee $kubeadm_config_file >/dev/null
 apiVersion: kubeadm.k8s.io/v1beta1
 kind: ClusterConfiguration
@@ -96,7 +97,8 @@ EOF
 }
 
 function kubeadm_join {
-    local kubeadm_config_file=$(mktemp)
+    local kubeadm_config_file
+    kubeadm_config_file=$(mktemp)
     cat <<EOF | sudo tee $kubeadm_config_file >/dev/null
 apiVersion: kubeadm.k8s.io/v1beta1
 kind: JoinConfiguration

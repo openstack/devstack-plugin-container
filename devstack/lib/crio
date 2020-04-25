@@ -26,10 +26,10 @@ CRIO_ENGINE_SOCKET_FILE=${CRIO_ENGINE_SOCKET_FILE:-/var/run/crio/crio.sock}
 
 function check_crio {
     if is_ubuntu; then
-       dpkg -l | grep crio-o > /dev/null 2>&1
+        dpkg -l | grep crio-o > /dev/null 2>&1
     else
-       false
-       # TODO: CentOS/Fedora support.
+        false
+        # TODO: CentOS/Fedora support.
     fi
 }
 
@@ -40,7 +40,8 @@ function install_crio {
 
     local lsb_dist=${os_VENDOR,,}
     local dist_version=${os_CODENAME}
-    local arch=$(dpkg --print-architecture)
+    local arch
+    arch=$(dpkg --print-architecture)
     if is_ubuntu; then
         apt_get install apt-transport-https ca-certificates software-properties-common
         sudo add-apt-repository -y ppa:projectatomic/ppa
