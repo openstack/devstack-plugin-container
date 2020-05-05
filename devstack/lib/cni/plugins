@@ -78,7 +78,7 @@ function configure_cni_plugins {
 
     for plugin in ${CNI_PLUGINS_INSTALL_PLUGINS//,/ }; do
         local source_config_file
-        source_config_file=$(ls ${CNI_PLUGINS_CONF_SOURCE_DIR}/*${plugin}.conf 2> /dev/null)
+        source_config_file=$(ls ${CNI_PLUGINS_CONF_SOURCE_DIR}/*${plugin}.conf 2> /dev/null || true)
         if [ $source_config_file ]; then
             echo "Found config file for plugin: $plugin"
             sudo install -o "$STACK_USER" -m 0664 -t "$CNI_PLUGINS_CONF_DIR" -D \
