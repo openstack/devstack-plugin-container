@@ -27,7 +27,7 @@ K8S_NODE_IP=${K8S_NODE_IP:-$HOST_IP}
 K8S_API_SERVER_PORT=${K8S_API_SERVER_PORT:-6443}
 K8S_POD_NETWORK_CIDR=${K8S_POD_NETWORK_CIDR:-10.244.0.0/16}
 K8S_SERVICE_NETWORK_CIDR=${K8S_SERVICE_NETWORK_CIDR:-10.96.0.0/12}
-K8S_VERSION=${K8S_VERSION:-1.14.1-00}
+K8S_VERSION=${K8S_VERSION:-1.19.0-00}
 K8S_NETWORK_ADDON=${K8S_NETWORK_ADDON:-flannel}
 
 # Functions
@@ -60,7 +60,7 @@ function install_kubeadm {
 function kubeadm_init {
     local kubeadm_config_file
     kubeadm_config_file=$(mktemp)
-    cat <<EOF | sudo tee $kubeadm_config_file >/dev/null
+    cat <<EOF | tee $kubeadm_config_file >/dev/null
 apiVersion: kubeadm.k8s.io/v1beta1
 kind: ClusterConfiguration
 etcd:
@@ -92,14 +92,14 @@ EOF
     safe_chown $STACK_USER:$STACK_USER $kube_config_file
 
     if [[ "$K8S_NETWORK_ADDON" == "flannel" ]]; then
-        kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/a70459be0084506e4ec919aa1c114638878db11b/Documentation/kube-flannel.yml
+        kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/4ff77dc7c35851913587f7daccf25d754e77aa65/Documentation/kube-flannel.yml
     fi
 }
 
 function kubeadm_join {
     local kubeadm_config_file
     kubeadm_config_file=$(mktemp)
-    cat <<EOF | sudo tee $kubeadm_config_file >/dev/null
+    cat <<EOF | tee $kubeadm_config_file >/dev/null
 apiVersion: kubeadm.k8s.io/v1beta1
 kind: JoinConfiguration
 discovery:

@@ -18,7 +18,7 @@
 - job:
     name: devstack-plugin-container-k8s
     parent: devstack-minimal
-    nodeset: openstack-two-node-bionic
+    nodeset: openstack-two-node-focal
     pre-run: playbooks/devstack-plugin-container-k8s/pre.yaml
     run: playbooks/devstack-plugin-container-k8s/run.yaml
     post-run: playbooks/devstack-plugin-container-k8s/post.yaml
