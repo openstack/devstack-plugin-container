@@ -94,6 +94,20 @@ function configure_crio {
 registries = ['docker.io']
 EOF
         fi
+        # CRI-O from kubic repo have placed runc in different place, not even
+        # in path, just to not conflict with runc package from official repo.
+        # We need to change it.
+        iniset -sudo ${crio_conf} crio.runtime.runtimes.runc runtime_path \
+            \"/usr/lib/cri-o-runc/sbin/runc\"
+
+        if [ -n "${CNI_CONF_DIR}" ]; then
+            iniset -sudo ${crio_conf} crio.network network_dir \
+                \"${CNI_CONF_DIR}\"
+        fi
+        if [ -n "${CNI_PLUGIN_DIR}" ]; then
+            iniset -sudo ${crio_conf} crio.network plugin_dir \
+                \"${CNI_PLUGIN_DIR}\"
+        fi
     elif is_fedora; then
         local lsb_dist=${os_VENDOR,,}
 
