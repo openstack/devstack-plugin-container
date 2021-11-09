@@ -20,6 +20,7 @@ set +o xtrace
 # --------
 
 CRIO_ENGINE_SOCKET_FILE=${CRIO_ENGINE_SOCKET_FILE:-/var/run/crio/crio.sock}
+CRIO_ALLOW_ICMP=$(trueorfalse True CRIO_ALLOW_ICMP)
 
 # Functions
 # ---------
@@ -73,14 +74,13 @@ function configure_crio {
     # After an ./unstack it will be stopped. So it is ok if it returns exit-code == 1
     sudo systemctl stop crio.service || true
 
-    local crio_conf
-    crio_conf=/etc/crio/crio.conf
+    export CRIO_CONF="/etc/crio/crio.conf"
 
     # We're wrapping values in \"<val>\" because that's the format cri-o wants.
-    iniset -sudo ${crio_conf} crio.api listen \"${CRIO_ENGINE_SOCKET_FILE}\"
+    iniset -sudo ${CRIO_CONF} crio.api listen \"${CRIO_ENGINE_SOCKET_FILE}\"
     if [[ "$ENABLE_DEBUG_LOG_LEVEL" == "True" ]]; then
         # debug is way too verbose, info will be enough
-        iniset -sudo ${crio_conf} crio.runtime log_level \"info\"
+        iniset -sudo ${CRIO_CONF} crio.runtime log_level \"info\"
     fi
     if is_ubuntu; then
         # At least for 18.04 we need to set up /etc/containers/registries.conf
@@ -97,26 +97,38 @@ EOF
         # CRI-O from kubic repo have placed runc in different place, not even
         # in path, just to not conflict with runc package from official repo.
         # We need to change it.
-        iniset -sudo ${crio_conf} crio.runtime.runtimes.runc runtime_path \
+        iniset -sudo ${CRIO_CONF} crio.runtime.runtimes.runc runtime_path \
             \"/usr/lib/cri-o-runc/sbin/runc\"
 
         if [ -n "${CNI_CONF_DIR}" ]; then
-            iniset -sudo ${crio_conf} crio.network network_dir \
+            iniset -sudo ${CRIO_CONF} crio.network network_dir \
                 \"${CNI_CONF_DIR}\"
         fi
         if [ -n "${CNI_PLUGIN_DIR}" ]; then
-            iniset -sudo ${crio_conf} crio.network plugin_dir \
+            iniset -sudo ${CRIO_CONF} crio.network plugin_dir \
                 \"${CNI_PLUGIN_DIR}\"
+        fi
+        # By default CRI-O doesn't allow ICMP between containers, although it
+        # is ususally expected for testing purposes.
+        if [ "${CRIO_ALLOW_ICMP}" == "True" ]; then
+            if grep -q 'default_sysctls =' ${CRIO_CONF}; then
+                export CRIO_KEY="default_sysctls"
+                export CRIO_VAL='[ "net.ipv4.ping_group_range=0 2147483647", ]'
+                _update_config
+            else
+                iniset -sudo ${CRIO_CONF} crio.runtime default_sysctls \
+                    '[ "net.ipv4.ping_group_range=0 2147483647", ]'
+            fi
         fi
     elif is_fedora; then
         local lsb_dist=${os_VENDOR,,}
 
         if [[ "$lsb_dist" = "centos" ]]; then
             # CentOS packages are putting runc binary in different place...
-            iniset -sudo ${crio_conf} crio.runtime runtime \"/usr/sbin/runc\"
+            iniset -sudo ${CRIO_CONF} crio.runtime runtime \"/usr/sbin/runc\"
 
             # CentOS version seems to only work with cgroupfs...
-            iniset -sudo ${crio_conf} crio.runtime cgroup_manager \"cgroupfs\"
+            iniset -sudo ${CRIO_CONF} crio.runtime cgroup_manager \"cgroupfs\"
         fi
     fi
 
@@ -125,6 +137,47 @@ EOF
 
 function stop_crio {
     sudo systemctl stop crio.service || true
+}
+
+function _update_config {
+sudo -E python3 - <<EOF
+"""
+Update provided by CRIO_KEY key list in crio configuration in a form of:
+
+  some_key = [ some,
+      value
+  ]
+
+or just an empty list:
+
+  some_key = [
+  ]
+
+with the CRIO_VAL value.
+
+Note, CRIO_VAL must include square brackets.
+
+"""
+import os
+import re
+
+crio_key = os.environ.get('CRIO_KEY')
+crio_val = os.environ.get('CRIO_VAL')
+crio_conf = os.environ.get('CRIO_CONF')
+
+pat = re.compile(rf'{crio_key}\s*=\s*\[[^\]]*\]', flags=re.S | re.M)
+
+with open(crio_conf) as fobj:
+    conf = fobj.read()
+
+with open(crio_conf, 'w') as fobj:
+    search = pat.search(conf)
+    if search:
+        start, end = search.span()
+        conf = conf[:start] + f'{crio_key} = {crio_val}' + conf[end:]
+        fobj.write(conf)
+
+EOF
 }
 
 # Restore xtrace
