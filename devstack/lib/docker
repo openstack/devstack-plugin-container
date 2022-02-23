@@ -56,8 +56,10 @@ function install_docker {
 
     local lsb_dist=${os_VENDOR,,}
     local dist_version=${os_CODENAME}
-    local arch
-    arch=$(dpkg --print-architecture)
+    if [[ "$lsb_dist" != "centosstream" ]]; then
+        local arch
+        arch=$(dpkg --print-architecture)
+    fi
     if is_ubuntu; then
         if [[ ${dist_version} == 'trusty' ]]; then
             if uname -r | grep -q -- '-generic' && dpkg -l 'linux-image-*-generic' | grep -qE '^ii|^hi' 2>/dev/null; then
@@ -79,6 +81,17 @@ function install_docker {
             sudo yum-config-manager \
                 --add-repo \
                 https://download.docker.com/linux/centos/docker-ce.repo
+        elif  [[ "$lsb_dist" = "centosstream" ]]; then
+            sudo yum-config-manager \
+                --add-repo \
+                https://download.docker.com/linux/centos/docker-ce.repo
+            sudo yum-config-manager \
+                --add-repo \
+                https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64 #noqa
+            sudo yum-config-manager \
+                --enable \
+                packages.cloud.google.com_yum_repos_kubernetes-el7-x86_64
+            sudo dnf -y install kubeadm --nogpgcheck
         elif [[ "$lsb_dist" = "fedora" ]]; then
             sudo dnf config-manager \
                 --add-repo \
