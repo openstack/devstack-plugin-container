@@ -24,3 +24,6 @@ if [[ ,${ENABLED_SERVICES} =~ ,"k8s-master" ]]; then
     enable_service kube-scheduler
     enable_service kube-proxy
 fi
+
+# Customize kubeadm container images repository
+KUBEADMIN_IMAGE_REPOSITORY=${KUBEADMIN_IMAGE_REPOSITORY:-"k8s.gcr.io"}
