@@ -27,3 +27,7 @@ fi
 
 # Customize kubeadm container images repository
 KUBEADMIN_IMAGE_REPOSITORY=${KUBEADMIN_IMAGE_REPOSITORY:-"k8s.gcr.io"}
+
+# Configure crio pause image
+CRIO_PAUSE_IMAGE=${CRIO_PAUSE_IMAGE:-"k8s.gcr.io/pause:3.6"}
+CRIO_PAUSE_COMMAND=${CRIO_PAUSE_COMMAND:-"/pause"}

@@ -78,6 +78,8 @@ function configure_crio {
 
     # We're wrapping values in \"<val>\" because that's the format cri-o wants.
     iniset -sudo ${CRIO_CONF} crio.api listen \"${CRIO_ENGINE_SOCKET_FILE}\"
+    iniset -sudo ${CRIO_CONF} crio.image pause_image \"${CRIO_PAUSE_IMAGE}\"
+    iniset -sudo ${CRIO_CONF} crio.image pause_command \"${CRIO_PAUSE_COMMAND}\"
     if [[ "$ENABLE_DEBUG_LOG_LEVEL" == "True" ]]; then
         # debug is way too verbose, info will be enough
         iniset -sudo ${CRIO_CONF} crio.runtime log_level \"info\"
