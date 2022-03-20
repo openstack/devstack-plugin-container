@@ -63,6 +63,7 @@ function kubeadm_init {
     cat <<EOF | tee $kubeadm_config_file >/dev/null
 apiVersion: kubeadm.k8s.io/v1beta1
 kind: ClusterConfiguration
+imageRepository: "${KUBEADMIN_IMAGE_REPOSITORY}"
 etcd:
   external:
     endpoints:
@@ -84,6 +85,7 @@ apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 failSwapOn: false
 EOF
+    sudo kubeadm config images pull --image-repository=${KUBEADMIN_IMAGE_REPOSITORY}
     sudo kubeadm init --config $kubeadm_config_file --ignore-preflight-errors Swap
 
     local kube_config_file=$HOME/.kube/config
