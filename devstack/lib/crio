@@ -66,6 +66,17 @@ function install_crio {
                 --add-repo \
                 https://cbs.centos.org/repos/paas7-crio-311-candidate/x86_64/os/
         fi
+        if [[ "${os_VENDOR}" == *'Stream' ]]; then
+                    local stream="_Stream"
+        fi
+        # NOTE: All crio versions are not supported for Centos 8 stream
+        # because crio rpm is not present for some minor versions
+        sudo yum-config-manager \
+            --add-repo \
+            "https://download.opensuse.org/repositories/"`
+            `"devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/"`
+            `"CentOS_${os_RELEASE}${stream}/"
+
         yum_install cri-o podman buildah
     fi
 }
