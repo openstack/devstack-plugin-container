@@ -48,9 +48,9 @@ function install_crio {
             software-properties-common
         sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 \
             --recv ${kubic_obs_project_key}
-        sudo apt-add-repository "deb https://download.opensuse.org/"`
+        sudo apt-add-repository -y "deb https://download.opensuse.org/"`
             `"repositories/devel:/kubic:/libcontainers:/stable/${os}/ /"
-        sudo apt-add-repository "deb http://download.opensuse.org/"`
+        sudo apt-add-repository -y "deb http://download.opensuse.org/"`
             `"repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/"`
             `"${CRIO_VERSION}/${os}/ /"
 
