@@ -85,16 +85,38 @@ function configure_crio {
         iniset -sudo ${CRIO_CONF} crio.runtime log_level \"info\"
     fi
     if is_ubuntu; then
+        local crio_minor=${CRIO_VERSION#*.}
         # At least for 18.04 we need to set up /etc/containers/registries.conf
         # with some initial content. That's another bug with that PPA.
         local registries_conf
         registries_conf="/etc/containers/registries.conf"
-        if [[ ! -f ${registries_conf} ]]; then
+
+        if [[ ! -f ${registries_conf} && $crio_minor -lt 24 ]]; then
             sudo mkdir -p `dirname ${registries_conf}`
             cat << EOF | sudo tee ${registries_conf}
 [registries.search]
 registries = ['docker.io']
 EOF
+        else
+            # If there is a config file, that means, we are probably on the
+            # newer version of crio/container/podman, which basically means
+            # we cannot mix [registries.search] registries filled with
+            # something and unqualified-search-registries setting which appear
+            # on sysregistry v2 config syntax. And because it's a TOML now, we
+            # cannot rely on iniset, but directly change the file.
+
+            local rname='unqualified-search-registries'
+            local rval='["docker.io", "quay.io"]'
+            if [[ ! -f ${registries_conf} ]]; then
+                cat << EOF | sudo tee ${registries_conf}
+unqualified-search-registries = ["docker.io", "quay.io"]
+EOF
+            elif grep -wq "^${rname}" "${registries_conf}"; then
+                sudo sed -i -e \
+                    "s/^${rname}.*$/${rname} = ${rval}/" "${registries_conf}"
+            else
+                sudo sed -i "1s/^/${rname} = ${rval}\n/" "${registries_conf}"
+            fi
         fi
         # CRI-O from kubic repo have placed runc in different place, not even
         # in path, just to not conflict with runc package from official repo.
@@ -113,7 +135,7 @@ EOF
         # By default CRI-O doesn't allow ICMP between containers, although it
         # is ususally expected for testing purposes.
         if [ "${CRIO_ALLOW_ICMP}" == "True" ]; then
-            if grep -q 'default_sysctls =' ${CRIO_CONF}; then
+            if grep -wq '^default_sysctls' ${CRIO_CONF}; then
                 export CRIO_KEY="default_sysctls"
                 export CRIO_VAL='[ "net.ipv4.ping_group_range=0 2147483647", ]'
                 _update_config
