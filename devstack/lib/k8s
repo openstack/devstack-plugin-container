@@ -27,7 +27,7 @@ K8S_NODE_IP=${K8S_NODE_IP:-$HOST_IP}
 K8S_API_SERVER_PORT=${K8S_API_SERVER_PORT:-6443}
 K8S_POD_NETWORK_CIDR=${K8S_POD_NETWORK_CIDR:-10.244.0.0/16}
 K8S_SERVICE_NETWORK_CIDR=${K8S_SERVICE_NETWORK_CIDR:-10.96.0.0/12}
-K8S_VERSION=${K8S_VERSION:-1.19.0-00}
+K8S_VERSION=${K8S_VERSION:-1.23.16-00}
 K8S_NETWORK_ADDON=${K8S_NETWORK_ADDON:-flannel}
 
 # Functions
@@ -60,8 +60,18 @@ function install_kubeadm {
 function kubeadm_init {
     local kubeadm_config_file
     kubeadm_config_file=$(mktemp)
+
+    if [[ ${CONTAINER_ENGINE} == 'crio' ]]; then
+        CGROUP_DRIVER=$(iniget "/etc/crio/crio.conf" crio.runtime cgroup_manager)
+        CRI_SOCKET="unix:///var/run/crio/crio.sock"
+    else
+        # docker is used
+        CGROUP_DRIVER=$(docker info -f '{{.CgroupDriver}}')
+        CRI_SOCKET="/var/run/dockershim.sock"
+    fi
+
     cat <<EOF | tee $kubeadm_config_file >/dev/null
-apiVersion: kubeadm.k8s.io/v1beta1
+apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 imageRepository: "${KUBEADMIN_IMAGE_REPOSITORY}"
 etcd:
@@ -72,7 +82,7 @@ networking:
   podSubnet: "${K8S_POD_NETWORK_CIDR}"
   serviceSubnet: "${K8S_SERVICE_NETWORK_CIDR}"
 ---
-apiVersion: kubeadm.k8s.io/v1beta1
+apiVersion: kubeadm.k8s.io/v1beta2
 bootstrapTokens:
 - token: "${K8S_TOKEN}"
   ttl: 0s
@@ -80,10 +90,19 @@ kind: InitConfiguration
 localAPIEndpoint:
   advertiseAddress: "${K8S_API_SERVER_IP}"
   bindPort: ${K8S_API_SERVER_PORT}
+nodeRegistration:
+  criSocket: "$CRI_SOCKET"
+  kubeletExtraArgs:
+    enable-server: "true"
+  taints:
+    []
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 failSwapOn: false
+address: "0.0.0.0"
+enableServer: true
+cgroupDriver: $CGROUP_DRIVER
 EOF
     sudo kubeadm config images pull --image-repository=${KUBEADMIN_IMAGE_REPOSITORY}
     sudo kubeadm init --config $kubeadm_config_file --ignore-preflight-errors Swap
@@ -101,8 +120,18 @@ EOF
 function kubeadm_join {
     local kubeadm_config_file
     kubeadm_config_file=$(mktemp)
+
+    if [[ ${CONTAINER_ENGINE} == 'crio' ]]; then
+        CGROUP_DRIVER=$(iniget "/etc/crio/crio.conf" crio.runtime cgroup_manager)
+        CRI_SOCKET="unix:///var/run/crio/crio.sock"
+    else
+        # docker is used
+        CGROUP_DRIVER=$(docker info -f '{{.CgroupDriver}}')
+        CRI_SOCKET="/var/run/dockershim.sock"
+    fi
+
     cat <<EOF | tee $kubeadm_config_file >/dev/null
-apiVersion: kubeadm.k8s.io/v1beta1
+apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
 discovery:
   bootstrapToken:
@@ -110,10 +139,19 @@ discovery:
     token: "${K8S_TOKEN}"
     unsafeSkipCAVerification: true
   tlsBootstrapToken: "${K8S_TOKEN}"
+nodeRegistration:
+  criSocket: "$CRI_SOCKET"
+  kubeletExtraArgs:
+    enable-server: "true"
+  taints:
+    []
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 failSwapOn: false
+address: "0.0.0.0"
+enableServer: true
+cgroupDriver: $CGROUP_DRIVER
 EOF
     sudo kubeadm join --config $kubeadm_config_file --ignore-preflight-errors Swap
 }

@@ -234,7 +234,7 @@ ExecStart=/usr/bin/dockerd --config-file=$docker_config_file
 Environment="HTTP_PROXY=$http_proxy" "HTTPS_PROXY=$https_proxy" "NO_PROXY=$no_proxy"
 EOF
     sudo systemctl daemon-reload
-    sudo systemctl --no-block restart docker.service
+    sudo systemctl restart docker.service
 }
 
 function configure_containerd {
