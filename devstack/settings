@@ -14,6 +14,8 @@ CRIO_ALLOW_ICMP=${CRIO_ALLOW_ICMP:-true}
 CNI_CONF_DIR=${CNI_CONF_DIR:-}
 CNI_PLUGIN_DIR=${CNI_PLUGIN_DIR:-}
 
+UBUNTU_DOCKER_VERSION=${UBUNTU_DOCKER_VERSION:-}
+
 # Enable container services
 enable_service container
 
