@@ -77,7 +77,11 @@ function install_docker {
             ${dist_version} \
             stable"
         REPOS_UPDATED=False apt_get_update
-        apt_get install docker-ce
+        if [ -n "${UBUNTU_DOCKER_VERSION}" ]; then
+            apt_get install docker-ce=$UBUNTU_DOCKER_VERSION
+        else
+            apt_get install docker-ce
+        fi
     elif is_fedora; then
         if [[ "$lsb_dist" = "centos" ]]; then
             sudo yum-config-manager \
