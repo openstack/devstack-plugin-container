@@ -57,6 +57,7 @@ function install_crio {
         # Installing podman and containerd will get us compatible versions of
         # cri-o and runc. And we need podman to manage container images anyway.
         apt_get install podman buildah cri-o-runc cri-o
+        sudo systemctl enable crio
     elif is_fedora; then
         if [[ "$lsb_dist" = "centos" ]]; then
             sudo yum-config-manager \
