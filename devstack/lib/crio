@@ -76,7 +76,8 @@ function install_crio {
             --add-repo \
             "https://download.opensuse.org/repositories/"`
             `"devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/"`
-            `"CentOS_${os_RELEASE}${stream}/"
+            `"CentOS_${os_RELEASE}${stream}/"`
+            `"devel:kubic:libcontainers:stable:cri-o:${CRIO_VERSION}.repo"
 
         yum_install cri-o podman buildah
     fi
