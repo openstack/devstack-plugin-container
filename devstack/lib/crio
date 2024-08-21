@@ -27,7 +27,7 @@ CRIO_ALLOW_ICMP=$(trueorfalse True CRIO_ALLOW_ICMP)
 
 function check_crio {
     if is_ubuntu; then
-        dpkg -l | grep crio-o > /dev/null 2>&1
+        dpkg -l | grep cri-o > /dev/null 2>&1
     else
         false
         # TODO: CentOS/Fedora support.
@@ -40,23 +40,21 @@ function install_crio {
     fi
 
     local lsb_dist=${os_VENDOR,,}
-    local dist_version=${os_CODENAME}
-    local kubic_obs_project_key="2472d6d0d2f66af87aba8da34d64390375060aa4"
-    local os="x${os_VENDOR}_${os_RELEASE}"
     if is_ubuntu; then
+        local stream="https://pkgs.k8s.io/addons:/cri-o:/stable:/v${CRIO_VERSION%.*}"
+        local key_path="/etc/apt/keyrings/cri-o-apt-keyring.gpg"
+
         apt_get install apt-transport-https ca-certificates \
-            software-properties-common
-        sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 \
-            --recv ${kubic_obs_project_key}
-        sudo apt-add-repository -y "deb https://download.opensuse.org/"`
-            `"repositories/devel:/kubic:/libcontainers:/stable/${os}/ /"
-        sudo apt-add-repository -y "deb http://download.opensuse.org/"`
-            `"repositories/devel:/kubic:/libcontainers:/stable:/cri-o:/"`
-            `"${CRIO_VERSION}/${os}/ /"
+            software-properties-common curl
+        curl -fsSL "${stream}/deb/Release.key" | sudo gpg --dearmor -o "${key_path}"
+        echo "deb [signed-by=${key_path}] ${stream}/deb/ /" | \
+            sudo tee /etc/apt/sources.list.d/cri-o.list
 
         # Installing podman and containerd will get us compatible versions of
-        # cri-o and runc. And we need podman to manage container images anyway.
-        apt_get install podman buildah cri-o-runc cri-o
+        # cri-o. And we need podman to manage container images anyway.
+        REPOS_UPDATED=False apt_get_update
+        crio_pkg_version=$(sudo apt-cache show cri-o | grep "Version: $CRIO_VERSION-" | awk '{ print $2 }' | head -n 1)
+        apt_get install podman buildah cri-o="${crio_pkg_version}"
         sudo systemctl enable crio
     elif is_fedora; then
         if [[ "$lsb_dist" = "centos" ]]; then
