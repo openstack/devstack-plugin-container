@@ -9,8 +9,6 @@
       - openstack/devstack
       - openstack/devstack-plugin-container
     vars:
-      devstack_localrc:
-        USE_PYTHON3: true
       devstack_plugins:
         devstack-plugin-container: https://opendev.org/openstack/devstack-plugin-container
 
@@ -34,7 +32,6 @@
         k8s-master: true
       devstack_localrc:
         K8S_TOKEN: "9agf12.zsu5uh2m4pzt3qba"
-        USE_PYTHON3: true
       devstack_plugins:
         devstack-plugin-container: https://opendev.org/openstack/devstack-plugin-container
     group-vars:
@@ -46,7 +43,6 @@
           k8s-node: true
         devstack_localrc:
           K8S_TOKEN: "9agf12.zsu5uh2m4pzt3qba"
-          USE_PYTHON3: true
 
 - project:
     check:
