@@ -29,6 +29,10 @@ K8S_POD_NETWORK_CIDR=${K8S_POD_NETWORK_CIDR:-10.244.0.0/16}
 K8S_SERVICE_NETWORK_CIDR=${K8S_SERVICE_NETWORK_CIDR:-10.96.0.0/12}
 K8S_VERSION=${K8S_VERSION:-"1.34.2"}
 K8S_NETWORK_ADDON=${K8S_NETWORK_ADDON:-flannel}
+K8S_CAPI_VERSION=${K8S_CAPI_VERSION:-v1.11.3}
+K8S_CAPO_VERSION=${K8S_CAPO_VERSION:-v0.13.1}
+K8S_CERT_MANAGER_VERSION=${K8S_CERT_MANAGER_VERSION:-v1.19.1}
+K8S_ORC_VERSION=${K8S_ORC_VERSION:-v2.3.0}
 
 # Functions
 # ---------
@@ -219,6 +223,30 @@ EOF
 
 function kubeadm_reset {
     sudo kubeadm reset --force
+}
+
+function capi_init {
+    kubectl get no -A
+    kubectl get po -A
+    # Install ORC
+    kubectl apply -f "https://github.com/k-orc/openstack-resource-controller/releases/download/${K8S_ORC_VERSION}/install.yaml"
+    # Install the `clusterctl` CLI
+    sudo curl -Lo /usr/local/bin/clusterctl https://github.com/kubernetes-sigs/cluster-api/releases/download/${K8S_CAPI_VERSION}/clusterctl-linux-amd64
+    sudo chmod +x /usr/local/bin/clusterctl
+    # Initialize the `clusterctl` CLI
+    export EXP_CLUSTER_RESOURCE_SET=true
+    export EXP_KUBEADM_BOOTSTRAP_FORMAT_IGNITION=true #Used by the kubeadm bootstrap provider
+    export CLUSTER_TOPOLOGY=true
+    clusterctl init \
+        --core cluster-api:${K8S_CAPI_VERSION} \
+        --bootstrap kubeadm:${K8S_CAPI_VERSION} \
+        --control-plane kubeadm:${K8S_CAPI_VERSION} \
+        --infrastructure openstack:${K8S_CAPO_VERSION}
+    # Wait for components to go up
+    kubectl -n capi-kubeadm-bootstrap-system rollout status deploy/capi-kubeadm-bootstrap-controller-manager
+    kubectl -n capi-kubeadm-control-plane-system rollout status deploy/capi-kubeadm-control-plane-controller-manager
+    kubectl -n capi-system rollout status deploy/capi-controller-manager
+    kubectl -n capo-system rollout status deploy/capo-controller-manager
 }
 
 # Restore xtrace

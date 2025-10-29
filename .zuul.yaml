@@ -30,6 +30,7 @@
         etcd3: true
         container: true
         k8s-master: true
+        k8s-capi: true
         mysql: false
         openstack-cli-server: false
         rabbit: false

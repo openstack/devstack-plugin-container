@@ -51,6 +51,9 @@ if is_k8s_enabled; then
         elif is_service_enabled k8s-node; then
             kubeadm_join
         fi
+        if is_service_enabled k8s-capi; then
+            capi_init
+        fi
     elif [[ "$1" == "stack" && "$2" == "extra" ]]; then
         if is_service_enabled k8s-master; then
             start_collect_logs
