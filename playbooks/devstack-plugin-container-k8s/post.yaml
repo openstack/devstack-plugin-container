@@ -2,3 +2,7 @@
   roles:
     - fetch_docker_log
     - fetch_kubelet_log
+
+- hosts: controller
+  roles:
+    - fetch_pod_log

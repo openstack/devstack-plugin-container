@@ -30,7 +30,12 @@
         etcd3: true
         container: true
         k8s-master: true
-      devstack_localrc:
+        mysql: false
+        openstack-cli-server: false
+        rabbit: false
+      devstack_localrc: &k8s_base_devstack_localrc
+        CONTAINER_ENGINE: "crio"
+        CRIO_INSTALL_PODMAN: "false"
         K8S_TOKEN: "9agf12.zsu5uh2m4pzt3qba"
       devstack_plugins:
         devstack-plugin-container: https://opendev.org/openstack/devstack-plugin-container
@@ -41,17 +46,16 @@
           base: false
           container: true
           k8s-node: true
-        devstack_localrc:
-          K8S_TOKEN: "9agf12.zsu5uh2m4pzt3qba"
+        devstack_localrc: *k8s_base_devstack_localrc
 
 - project:
     check:
       jobs:
         - openstack-tox-bashate
         - devstack-plugin-container-dsvm
-        - devstack-plugin-container-k8s:
-            voting: false
+        - devstack-plugin-container-k8s
     gate:
       jobs:
         - openstack-tox-bashate
         - devstack-plugin-container-dsvm
+        - devstack-plugin-container-k8s

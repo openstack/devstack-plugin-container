@@ -1,0 +1,14 @@
+---
+features:
+  - |
+    Updated default cri-o version to ``1.32.1``.
+  - |
+    Introduced option to not install podman in crio plugin by setting
+    ``CRIO_INSTALL_PODMAN`` to ``false`` (default is ``true``).
+  - |
+    Introduced logic to detect if unbound is running on the host and
+    implement a custom resolv.conf in that case (OpenDev CI configured
+    unbound does not work for CoreDNS HINFO queries)
+upgrade:
+  - |
+    Updated default cri-o version to ``1.32.1``.

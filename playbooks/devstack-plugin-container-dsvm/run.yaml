@@ -5,4 +5,4 @@
         cmd: |
           set -e
           set -x
-          sudo -H -u stack docker run hello-world
+          sudo -H -u stack docker run quay.io/lib/hello-world

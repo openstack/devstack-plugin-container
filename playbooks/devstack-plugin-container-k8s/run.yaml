@@ -20,10 +20,10 @@
           spec:
             containers:
             - name: myapp-container
-              image: busybox
+              image: quay.io/jitesoft/alpine
               command: ['sh', '-c', 'echo Hello Kubernetes! && sleep 3600']
           EOT
           kubectl create -f $tmpfile
-          kubectl wait --for=condition=Ready pod myapp-pod
+          kubectl wait --timeout=600s --for=condition=Ready pod myapp-pod
       become: true
       become_user: stack

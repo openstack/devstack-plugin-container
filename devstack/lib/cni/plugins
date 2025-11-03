@@ -62,7 +62,7 @@ function install_cni_plugins {
         tar xzvf $cni_plugins_file -C $FILES/cniplugins
     fi
     for plugin in ${CNI_PLUGINS_INSTALL_PLUGINS//,/ }; do
-        if [ $(ls $FILES/cniplugins/$plugin 2> /dev/null) ]; then
+        if [[ $(ls $FILES/cniplugins/$plugin 2> /dev/null) ]]; then
             echo "Install plugin: $plugin"
             sudo install -o "$STACK_USER" -m 0555 -D "$FILES/cniplugins/$plugin" \
                 "$CNI_PLUGINS_BIN_DIR/$plugin"

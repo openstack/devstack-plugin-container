@@ -21,6 +21,7 @@ set +o xtrace
 
 CRIO_ENGINE_SOCKET_FILE=${CRIO_ENGINE_SOCKET_FILE:-/var/run/crio/crio.sock}
 CRIO_ALLOW_ICMP=$(trueorfalse True CRIO_ALLOW_ICMP)
+CRIO_INSTALL_PODMAN=${CRIO_INSTALL_PODMAN:-true}
 
 # Functions
 # ---------
@@ -54,8 +55,12 @@ function install_crio {
         # cri-o. And we need podman to manage container images anyway.
         REPOS_UPDATED=False apt_get_update
         crio_pkg_version=$(sudo apt-cache show cri-o | grep "Version: $CRIO_VERSION-" | awk '{ print $2 }' | head -n 1)
-        apt_get install podman buildah cri-o="${crio_pkg_version}"
-        sudo systemctl enable crio
+        if [[ $CRIO_INSTALL_PODMAN == "true" ]]; then
+            apt_get install cri-o="${crio_pkg_version}"
+        else
+            apt_get install cri-o="${crio_pkg_version}"
+        fi
+        sudo systemctl enable --now crio
     elif is_fedora; then
         if [[ "$lsb_dist" = "centos" ]]; then
             sudo yum-config-manager \
@@ -76,8 +81,11 @@ function install_crio {
             `"devel:/kubic:/libcontainers:/stable:/cri-o:/${CRIO_VERSION}/"`
             `"CentOS_${os_RELEASE}${stream}/"`
             `"devel:kubic:libcontainers:stable:cri-o:${CRIO_VERSION}.repo"
-
-        yum_install cri-o podman buildah
+        if [[ $CRIO_INSTALL_PODMAN == "true" ]]; then
+            yum_install cri-o podman buildah
+        else
+            yum_install cri-o
+        fi
     fi
 }
 

@@ -1,0 +1,40 @@
+---
+- name: Ensure log path exists
+  become: yes
+  file:
+    path: "{{ ansible_user_dir }}/logs"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: 0775
+
+- name: Wait for the kube-system pods to come up with status 'Running'
+  become: true
+  ansible.builtin.shell:
+    cmd: >-
+      kubectl wait
+      --kubeconfig /etc/kubernetes/admin.conf
+      -n kube-system
+      --for=jsonpath='{.status.phase}'=Running pods
+      --selector tier=control-plane
+      --timeout=120s
+  register: control_plane_pods_running
+
+- name: Gather pod logs and descriptions
+  become: true
+  environment:
+    KUBECONFIG: "/etc/kubernetes/admin.conf"
+  ansible.builtin.shell:
+    chdir: "{{ ansible_user_dir }}/logs"
+    cmd: |
+      mkdir -p kubernetes
+      kubectl get all,cm,nodes,secret,ing -A -o wide > kubernetes/kubectl_get_all.txt
+      kubectl get nodes -o name | xargs -I{} kubectl describe {} > kubernetes/kubectl_describe_nodes.txt
+      for ns in $(kubectl get -o name namespace); do
+          mkdir -p kubernetes/pods/${ns#*/}
+          for pod in $(kubectl get -n ${ns#*/} -o name pod); do
+              kubectl -n ${ns#*/} describe pod ${pod#*/} > kubernetes/pods/${ns#*/}/${pod#*/}_describe
+              kubectl -n ${ns#*/} logs ${pod#*/} > kubernetes/pods/${ns#*/}/${pod#*/}
+          done
+      done
+

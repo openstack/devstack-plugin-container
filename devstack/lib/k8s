@@ -38,6 +38,17 @@ function is_k8s_enabled {
     return 1
 }
 
+function unbound_handling {
+    if sudo test -f "/etc/unbound/forwarding.conf"; then
+        echo "Discovered unbound installation - using custom resolv.conf for Kubernetes"
+        K8S_RESOLV_CONF="/etc/kubernetes/resolv.conf"
+        sudo mkdir -p /etc/kubernetes
+        echo -e "nameserver 1.0.0.1\nnameserver 8.8.8.8" | sudo tee -a /etc/kubernetes/resolv.conf
+    else
+        K8S_RESOLV_CONF="/etc/resolv.conf"
+    fi
+}
+
 function install_kubeadm {
     if is_ubuntu; then
         local stream="https://pkgs.k8s.io/core:/stable:/v${K8S_VERSION%.*}"
@@ -66,13 +77,18 @@ function kubeadm_init {
     local kubeadm_config_file
     kubeadm_config_file=$(mktemp)
 
+    # NOTE(mnasiadka): kubeadm requires ip_forward to be set to 1
+    sudo sysctl -w net.ipv4.ip_forward=1
+    sudo modprobe br_netfilter overlay
+    sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+
+    unbound_handling
+
     if [[ ${CONTAINER_ENGINE} == 'crio' ]]; then
         CGROUP_DRIVER=$(iniget "/etc/crio/crio.conf" crio.runtime cgroup_manager)
         CRI_SOCKET="unix:///var/run/crio/crio.sock"
     else
-        # docker is used
-        CGROUP_DRIVER=$(docker info -f '{{.CgroupDriver}}')
-        CRI_SOCKET="/var/run/dockershim.sock"
+        die $LINENO "No support for $CONTAINER_ENGINE"
     fi
 
     cat <<EOF | tee $kubeadm_config_file >/dev/null
@@ -86,6 +102,7 @@ etcd:
 networking:
   podSubnet: "${K8S_POD_NETWORK_CIDR}"
   serviceSubnet: "${K8S_SERVICE_NETWORK_CIDR}"
+controlPlaneEndpoint: "${K8S_API_SERVER_IP}:${K8S_API_SERVER_PORT}"
 ---
 apiVersion: kubeadm.k8s.io/v1beta3
 bootstrapTokens:
@@ -108,6 +125,7 @@ failSwapOn: false
 address: "0.0.0.0"
 enableServer: true
 cgroupDriver: $CGROUP_DRIVER
+resolvConf: $K8S_RESOLV_CONF
 EOF
     sudo kubeadm config images pull --image-repository=${KUBEADMIN_IMAGE_REPOSITORY}
     sudo kubeadm init --config $kubeadm_config_file --ignore-preflight-errors Swap
@@ -116,23 +134,25 @@ EOF
     sudo mkdir -p $(dirname ${kube_config_file})
     sudo cp /etc/kubernetes/admin.conf $kube_config_file
     safe_chown $STACK_USER:$STACK_USER $kube_config_file
-
-    if [[ "$K8S_NETWORK_ADDON" == "flannel" ]]; then
-        kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
-    fi
+    kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
 }
 
 function kubeadm_join {
     local kubeadm_config_file
     kubeadm_config_file=$(mktemp)
 
+    # NOTE(mnasiadka): kubeadm requires ip_forward to be set to 1
+    sudo sysctl -w net.ipv4.ip_forward=1
+    sudo modprobe br_netfilter overlay
+    sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
+
+    unbound_handling
+
     if [[ ${CONTAINER_ENGINE} == 'crio' ]]; then
         CGROUP_DRIVER=$(iniget "/etc/crio/crio.conf" crio.runtime cgroup_manager)
         CRI_SOCKET="unix:///var/run/crio/crio.sock"
     else
-        # docker is used
-        CGROUP_DRIVER=$(docker info -f '{{.CgroupDriver}}')
-        CRI_SOCKET="/var/run/dockershim.sock"
+        die $LINENO "No support for $CONTAINER_ENGINE"
     fi
 
     cat <<EOF | tee $kubeadm_config_file >/dev/null
@@ -157,6 +177,7 @@ failSwapOn: false
 address: "0.0.0.0"
 enableServer: true
 cgroupDriver: $CGROUP_DRIVER
+resolvConf: $K8S_RESOLV_CONF
 EOF
     sudo kubeadm join --config $kubeadm_config_file --ignore-preflight-errors Swap
 }
@@ -166,6 +187,7 @@ function start_collect_logs {
     wait_for_kube_service 60 component=kube-apiserver
     wait_for_kube_service 30 component=kube-scheduler
     wait_for_kube_service 30 k8s-app=kube-proxy
+    wait_for_kube_service 180 k8s-app=kube-dns
     run_process kube-controller-manager "/usr/bin/kubectl logs -n kube-system -f -l component=kube-controller-manager"
     run_process kube-apiserver "/usr/bin/kubectl logs -n kube-system -f -l component=kube-apiserver"
     run_process kube-scheduler "/usr/bin/kubectl logs -n kube-system -f -l component=kube-scheduler"
