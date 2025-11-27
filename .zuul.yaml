@@ -36,6 +36,8 @@
       devstack_localrc: &k8s_base_devstack_localrc
         CONTAINER_ENGINE: "crio"
         CRIO_INSTALL_PODMAN: "false"
+        ETCD_VERSION: "v3.6.6"
+        ETCD_SHA256_AMD64: "887afaa4a99f22d802ccdfbe65730a5e79aa5c9ce2c8799c67e9d804c50ecedb"
         K8S_TOKEN: "9agf12.zsu5uh2m4pzt3qba"
       devstack_plugins:
         devstack-plugin-container: https://opendev.org/openstack/devstack-plugin-container
