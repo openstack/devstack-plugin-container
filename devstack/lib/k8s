@@ -59,7 +59,7 @@ function install_kubeadm {
         local key_path="/etc/apt/keyrings/kubernetes-apt-keyring.gpg"
 
         apt_get install apt-transport-https ca-certificates curl gpg
-        curl -fsSL "${stream}/deb/Release.key" | sudo gpg --dearmor -o "${key_path}"
+        curl -fsSL "${stream}/deb/Release.key" | sudo gpg --batch --yes --no-tty --dearmor -o "${key_path}"
         echo "deb [signed-by=${key_path}] ${stream}/deb/ /" | \
             sudo tee /etc/apt/sources.list.d/kubernetes.list
 
